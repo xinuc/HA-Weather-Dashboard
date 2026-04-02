@@ -4,6 +4,8 @@ A custom Home Assistant Lovelace card that displays a real-time animated weather
 
 Designed to work with [ha-wu-mqtt-bridge](https://github.com/xinuc/ha-wu-mqtt-bridge) but also compatible with any Home Assistant weather entity or individual sensor entities.
 
+![Weather Dashboard Card](screenshot.png)
+
 ## Features
 
 - Animated weather scene with sky gradients, condition icons, and twinkling stars at night
