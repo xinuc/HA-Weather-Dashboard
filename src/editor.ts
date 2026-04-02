@@ -38,6 +38,16 @@ export class WeatherDashboardCardEditor extends LitElement {
       label: 'Gauge Max Speed (km/h)',
       selector: { number: { min: 10, max: 200, step: 10, mode: 'slider' } },
     },
+    {
+      name: 'latitude',
+      label: 'Latitude (for dynamic sky, leave empty to use HA default)',
+      selector: { number: { min: -90, max: 90, step: 0.0001, mode: 'box' } },
+    },
+    {
+      name: 'longitude',
+      label: 'Longitude (for dynamic sky, leave empty to use HA default)',
+      selector: { number: { min: -180, max: 180, step: 0.0001, mode: 'box' } },
+    },
   ];
 
   setConfig(config: WeatherDashboardConfig): void {

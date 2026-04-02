@@ -50,13 +50,6 @@ export function getBeaufortLabel(kmh: number): string {
   return 'Hurricane';
 }
 
-export function getBeaufortNumber(kmh: number): number {
-  for (let i = 0; i < BEAUFORT_SCALE.length; i++) {
-    if (kmh <= BEAUFORT_SCALE[i].max) return i;
-  }
-  return 12;
-}
-
 export function bearingToDirection(bearing: number): string {
   const index = Math.round(((bearing % 360) + 360) % 360 / 22.5) % 16;
   return COMPASS_POINTS[index];

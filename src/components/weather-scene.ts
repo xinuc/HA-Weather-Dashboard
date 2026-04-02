@@ -5,6 +5,7 @@ import { weatherSceneStyles } from '../styles/weather-scene';
 import { getConditionIcon, getMoonIcon } from '../icons';
 import { WeatherCondition } from '../types';
 import { CONDITION_LABELS } from '../const';
+import { computeSkyGradient, skyGradientCSS, SkyInputs } from '../sky-color';
 
 import './aqi-badge';
 
@@ -42,21 +43,51 @@ export class WeatherScene extends LitElement {
   @property() windSpeedUnit = 'km/h';
   @property({ type: Number }) rainRate?: number;
   @property() rainRateUnit = 'mm/h';
+  @property({ type: Number }) solarRadiation?: number;
+  @property({ type: Number }) humidity?: number;
+  @property({ type: Number }) moonIllumination?: number;
   @property({ type: Number }) aqiValue?: number;
   @property() moonPhase?: string;
   @property({ type: Boolean }) narrow = false;
+  @property({ type: Boolean }) useDynamicSky = false;
 
   static styles = weatherSceneStyles;
 
+  /**
+   * Dynamic sky gradient computed from sensor data.
+   * Uses sun elevation, cloud characterization (Kt + UV spectral ratio),
+   * humidity/turbidity, rain, and moon illumination.
+   */
+  private _getSkyStyle(): string {
+    if (!this.useDynamicSky) return '';
+
+    const inputs: SkyInputs = {
+      sunElevation: this.elevation,
+      solarRadiation: this.solarRadiation,
+      uvIndex: this.uvIndex,
+      humidity: this.humidity,
+      rainRate: this.rainRate,
+      moonIllumination: this.moonIllumination,
+      isNight: this.isNight,
+    };
+
+    const gradient = computeSkyGradient(inputs);
+    return `background: ${skyGradientCSS(gradient)}`;
+  }
+
+  /**
+   * Fallback: static CSS sky class when dynamic sky is not available
+   * (no lat/lng configured).
+   */
   private _getSkyClass(): string {
+    if (this.useDynamicSky) return '';
+
     // Night
     if (this.elevation < 0) {
       if (this.condition.startsWith('thunderstorms')) return 'sky-stormy';
-      // Rain, drizzle, overcast, fog at night → dark overcast (no stars)
       if (this.condition === 'rain') return 'sky-night-overcast';
       if (this.condition === 'overcast-night' || this.condition === 'fog-night') return 'sky-night-overcast';
       if (this.condition === 'partly-cloudy-night-rain') return 'sky-night-overcast';
-      // Clear/partly-cloudy night → dark sky with stars
       return 'sky-night';
     }
 
@@ -97,13 +128,15 @@ export class WeatherScene extends LitElement {
 
   render() {
     const skyClass = this._getSkyClass();
+    const skyStyle = this._getSkyStyle();
     const showStars = STARS_VISIBLE_CONDITIONS.includes(this.condition);
     const conditionIcon = getConditionIcon(this.condition);
     const label = CONDITION_LABELS[this.condition] ?? this.condition;
 
     return html`
       <div class="weather-scene-panel">
-        <div class="weather-scene ${skyClass} ${showStars ? 'show-stars' : ''}">
+        <div class="weather-scene ${skyClass} ${showStars ? 'show-stars' : ''}"
+             style=${skyStyle}>
           <!-- AQI Badge -->
           ${this.aqiValue !== undefined ? html`
             <wdb-aqi-badge .pm25=${this.aqiValue}></wdb-aqi-badge>

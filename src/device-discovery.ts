@@ -31,7 +31,7 @@ const ROLE_MATCHERS: Array<{
   { role: 'visibility', match: (e) => /visibility/i.test(e.entity_id) },
 ];
 
-export function discoverSensors(
+function discoverSensors(
   hass: HomeAssistant,
   deviceId: string,
 ): Partial<Record<SensorRole, string>> {

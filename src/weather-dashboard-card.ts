@@ -251,6 +251,26 @@ export class WeatherDashboardCard extends LitElement {
     });
   }
 
+  /**
+   * Approximate moon illumination (0-1) from HA moon phase name.
+   * Used by the sky color engine for night sky brightness.
+   */
+  private _getMoonIllumination(phase?: string): number {
+    if (!phase) return 0;
+    const p = phase.toLowerCase().replace(/[_\s]/g, '');
+    switch (p) {
+      case 'newmoon': return 0;
+      case 'waxingcrescent': return 0.15;
+      case 'firstquarter': return 0.5;
+      case 'waxinggibbous': return 0.75;
+      case 'fullmoon': return 1.0;
+      case 'waninggibbous': return 0.75;
+      case 'lastquarter': case 'thirdquarter': return 0.5;
+      case 'waningcrescent': return 0.15;
+      default: return 0;
+    }
+  }
+
   private _getLocationName(): string {
     try {
       return (this._hass as any).config?.location_name ?? '';
@@ -285,6 +305,14 @@ export class WeatherDashboardCard extends LitElement {
     // Units from actual entities
     const tempUnit = this._getUnit('temperature') || '°C';
     const speedUnit = this._getUnit('wind_speed') || 'km/h';
+
+    // Dynamic sky: enabled when lat/lng available (from config or HA)
+    const hasLatLng = (this._config.latitude !== undefined && this._config.longitude !== undefined)
+      || (this._hass as any).config?.latitude !== undefined;
+    const useDynamicSky = hasLatLng;
+
+    // Moon illumination (0-1) from moon phase name
+    const moonIllumination = this._getMoonIllumination(moonPhase);
 
     // AQI
     let aqiValue: number | undefined;
@@ -333,8 +361,12 @@ export class WeatherDashboardCard extends LitElement {
               .windSpeedUnit=${speedUnit}
               .rainRate=${data.rain_rate}
               .rainRateUnit=${this._getUnit('rain_rate') || 'mm/h'}
+              .solarRadiation=${data.solar_radiation}
+              .humidity=${data.humidity}
+              .moonIllumination=${moonIllumination}
               .aqiValue=${aqiValue}
               .moonPhase=${moonPhase}
+              .useDynamicSky=${useDynamicSky}
             ></wdb-weather-scene>
           </div>
 

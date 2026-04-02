@@ -8,6 +8,8 @@ export interface WeatherDashboardConfig {
   title?: string;
   animations?: boolean;
   gauge_max?: number;
+  latitude?: number;
+  longitude?: number;
   sensors?: Partial<Record<SensorRole, string>>;
 }
 
