@@ -6,25 +6,28 @@ interface EntityMatch {
   friendly_name?: string;
 }
 
+// Match by friendly_name content OR entity_id suffix (WU parameter names).
+// HA may prefix friendly_name with device name, so we use contains-match, not exact.
+// Order matters: specific roles (feels_like, dew_point) must come before generic (temperature).
 const ROLE_MATCHERS: Array<{
   role: SensorRole;
   match: (e: EntityMatch) => boolean;
 }> = [
-  { role: 'feels_like', match: (e) => e.device_class === 'temperature' && /feels.?like/i.test(e.friendly_name ?? '') },
-  { role: 'wind_chill', match: (e) => e.device_class === 'temperature' && /wind.?chill/i.test(e.friendly_name ?? '') },
-  { role: 'heat_index', match: (e) => e.device_class === 'temperature' && /heat.?index/i.test(e.friendly_name ?? '') },
-  { role: 'dew_point', match: (e) => e.device_class === 'temperature' && /dew.?p/i.test(e.friendly_name ?? '') },
-  { role: 'soil_temp', match: (e) => e.device_class === 'temperature' && /soil/i.test(e.friendly_name ?? '') },
-  { role: 'temperature', match: (e) => e.device_class === 'temperature' && /^temperature$/i.test(e.friendly_name ?? '') },
-  { role: 'humidity', match: (e) => e.device_class === 'humidity' && !/indoor/i.test(e.friendly_name ?? '') },
-  { role: 'wind_gust', match: (e) => e.device_class === 'wind_speed' && /gust/i.test(e.friendly_name ?? '') && !/10m|avg|dir/i.test(e.friendly_name ?? '') },
-  { role: 'wind_speed', match: (e) => e.device_class === 'wind_speed' && !/gust|avg|10m/i.test(e.friendly_name ?? '') },
-  { role: 'wind_bearing', match: (e) => (e.device_class === 'wind_direction' || /wind.?dir/i.test(e.entity_id)) && !/gust|avg/i.test(e.friendly_name ?? '') },
-  { role: 'rain_rate', match: (e) => e.device_class === 'precipitation_intensity' },
-  { role: 'daily_rain', match: (e) => e.device_class === 'precipitation' && /daily/i.test(e.friendly_name ?? '') },
-  { role: 'pressure', match: (e) => e.device_class === 'atmospheric_pressure' && !/abs/i.test(e.friendly_name ?? '') },
-  { role: 'uv_index', match: (e) => /uv/i.test(e.entity_id) },
-  { role: 'solar_radiation', match: (e) => e.device_class === 'irradiance' },
+  { role: 'feels_like', match: (e) => e.device_class === 'temperature' && (/feels.?like/i.test(e.friendly_name ?? '') || /feelslike/i.test(e.entity_id)) },
+  { role: 'wind_chill', match: (e) => e.device_class === 'temperature' && (/wind.?chill/i.test(e.friendly_name ?? '') || /windchill/i.test(e.entity_id)) },
+  { role: 'heat_index', match: (e) => e.device_class === 'temperature' && (/heat.?index/i.test(e.friendly_name ?? '') || /heatindex/i.test(e.entity_id)) },
+  { role: 'dew_point', match: (e) => e.device_class === 'temperature' && (/dew.?p/i.test(e.friendly_name ?? '') || /dewpt/i.test(e.entity_id)) },
+  { role: 'soil_temp', match: (e) => e.device_class === 'temperature' && (/soil/i.test(e.friendly_name ?? '') || /soiltemp\d*f?$/i.test(e.entity_id)) },
+  { role: 'temperature', match: (e) => e.device_class === 'temperature' && (/temperature/i.test(e.friendly_name ?? '') || /_tempf$/i.test(e.entity_id)) },
+  { role: 'humidity', match: (e) => e.device_class === 'humidity' && !/indoor/i.test(e.friendly_name ?? '') && !/indoor/i.test(e.entity_id) },
+  { role: 'wind_gust', match: (e) => e.device_class === 'wind_speed' && (/gust/i.test(e.friendly_name ?? '') || /windgust/i.test(e.entity_id)) },
+  { role: 'wind_speed', match: (e) => e.device_class === 'wind_speed' && !/gust/i.test(e.friendly_name ?? '') && !/gust/i.test(e.entity_id) },
+  { role: 'wind_bearing', match: (e) => (e.device_class === 'wind_direction' || /winddir$/i.test(e.entity_id)) && !/gust/i.test(e.entity_id) },
+  { role: 'rain_rate', match: (e) => e.device_class === 'precipitation_intensity' || /_rainin$/i.test(e.entity_id) },
+  { role: 'daily_rain', match: (e) => (e.device_class === 'precipitation' && /daily/i.test(e.friendly_name ?? '')) || /dailyrainin$/i.test(e.entity_id) },
+  { role: 'pressure', match: (e) => e.device_class === 'atmospheric_pressure' && !/abs/i.test(e.friendly_name ?? '') && !/abs/i.test(e.entity_id) },
+  { role: 'uv_index', match: (e) => /uv/i.test(e.entity_id) && !/indoor/i.test(e.entity_id) },
+  { role: 'solar_radiation', match: (e) => e.device_class === 'irradiance' || /solarradiation/i.test(e.entity_id) },
   { role: 'visibility', match: (e) => /visibility/i.test(e.entity_id) },
 ];
 
