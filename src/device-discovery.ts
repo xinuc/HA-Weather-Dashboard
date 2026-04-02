@@ -35,20 +35,39 @@ export function discoverSensors(
   hass: HomeAssistant,
   deviceId: string,
 ): Partial<Record<SensorRole, string>> {
-  const prefix = `sensor.wu_${deviceId.toLowerCase()}_`;
   const result: Partial<Record<SensorRole, string>> = {};
   const assigned = new Set<string>();
-
-  // Collect all matching entities
   const candidates: EntityMatch[] = [];
-  for (const entityId of Object.keys(hass.states)) {
-    if (entityId.startsWith(prefix)) {
-      const state = hass.states[entityId];
-      candidates.push({
-        entity_id: entityId,
-        device_class: state.attributes.device_class,
-        friendly_name: state.attributes.friendly_name,
-      });
+
+  // Try HA device registry lookup first (device picker stores registry ID)
+  const entityRegistry = (hass as any).entities;
+  if (entityRegistry) {
+    for (const [entityId, entry] of Object.entries(entityRegistry as Record<string, any>)) {
+      if (entry.device_id === deviceId && entityId.startsWith('sensor.')) {
+        const state = hass.states[entityId];
+        if (state) {
+          candidates.push({
+            entity_id: entityId,
+            device_class: state.attributes.device_class,
+            friendly_name: state.attributes.friendly_name,
+          });
+        }
+      }
+    }
+  }
+
+  // Fallback: prefix-based discovery (backward compat with station ID string)
+  if (candidates.length === 0) {
+    const prefix = `sensor.wu_${deviceId.toLowerCase()}_`;
+    for (const entityId of Object.keys(hass.states)) {
+      if (entityId.startsWith(prefix)) {
+        const state = hass.states[entityId];
+        candidates.push({
+          entity_id: entityId,
+          device_class: state.attributes.device_class,
+          friendly_name: state.attributes.friendly_name,
+        });
+      }
     }
   }
 
