@@ -18,7 +18,7 @@ const ROLE_MATCHERS: Array<{
   { role: 'heat_index', match: (e) => e.device_class === 'temperature' && (/heat.?index/i.test(e.friendly_name ?? '') || /heatindex/i.test(e.entity_id)) },
   { role: 'dew_point', match: (e) => e.device_class === 'temperature' && (/dew.?p/i.test(e.friendly_name ?? '') || /dewpt/i.test(e.entity_id)) },
   { role: 'soil_temp', match: (e) => e.device_class === 'temperature' && (/soil/i.test(e.friendly_name ?? '') || /soiltemp\d*f?$/i.test(e.entity_id)) },
-  { role: 'temperature', match: (e) => e.device_class === 'temperature' && (/temperature/i.test(e.friendly_name ?? '') || /_tempf$/i.test(e.entity_id)) },
+  { role: 'temperature', match: (e) => e.device_class === 'temperature' && !/indoor/i.test(e.friendly_name ?? '') && !/indoor/i.test(e.entity_id) && (/temperature/i.test(e.friendly_name ?? '') || /_tempf$/i.test(e.entity_id)) },
   { role: 'humidity', match: (e) => e.device_class === 'humidity' && !/indoor/i.test(e.friendly_name ?? '') && !/indoor/i.test(e.entity_id) },
   { role: 'wind_gust', match: (e) => e.device_class === 'wind_speed' && (/gust/i.test(e.friendly_name ?? '') || /windgust/i.test(e.entity_id)) },
   { role: 'wind_speed', match: (e) => e.device_class === 'wind_speed' && !/gust/i.test(e.friendly_name ?? '') && !/gust/i.test(e.entity_id) },
