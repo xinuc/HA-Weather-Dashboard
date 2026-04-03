@@ -29,6 +29,21 @@ export const statCardStyles = css`
     height: 32px;
   }
 
+  .stat-card.clickable {
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  .stat-card.clickable:hover {
+    background: var(--wdb-stat-bg-hover, rgba(100, 149, 237, 0.28));
+  }
+
+  .stat-card.clickable:active {
+    transform: scale(0.97);
+  }
+
   .stat-name {
     font-size: 0.7rem;
     opacity: 0.7;

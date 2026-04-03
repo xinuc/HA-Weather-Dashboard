@@ -9,6 +9,7 @@ import { computeSkyGradient, SkyGradient, SkyInputs } from './sky-color';
 import { SkyHistoryStore } from './sky-history-store';
 import { formatValue, getBeaufortLabel, bearingToDirection, toKmh } from './utils';
 import { getStatIcon } from './icons';
+import { HistoryDataPoint } from './components/stat-history';
 
 import './editor';
 import './components/weather-scene';
@@ -16,11 +17,19 @@ import './components/sky-history';
 import './components/wind-compass';
 import './components/wind-gauge';
 import './components/stat-card';
+import './components/stat-history';
 
 @customElement('weather-dashboard-card')
 export class WeatherDashboardCard extends LitElement {
   @state() private _config!: WeatherDashboardConfig;
   @state() private _skyHistoryOpen = false;
+  @state() private _statHistoryOpen = false;
+  @state() private _statHistoryLoading = false;
+  @state() private _statHistoryData: HistoryDataPoint[] = [];
+  @state() private _statHistoryName = '';
+  @state() private _statHistoryUnit = '';
+  @state() private _statHistoryIcon = '';
+  private _statHistoryRequestId = 0;
   private _hass!: HomeAssistant;
   private _entities: Partial<Record<SensorRole, string>> = {};
   private _skyHistoryStore = new SkyHistoryStore();
@@ -284,6 +293,130 @@ export class WeatherDashboardCard extends LitElement {
     this._skyHistoryOpen = false;
   }
 
+  private async _onStatClick(e: CustomEvent): Promise<void> {
+    const { entityId, name, unit, icon } = e.detail;
+    if (!entityId || !this._hass) return;
+
+    // Increment request ID so stale fetches are discarded
+    const requestId = ++this._statHistoryRequestId;
+
+    this._statHistoryName = name;
+    this._statHistoryUnit = unit;
+    this._statHistoryIcon = icon;
+    this._statHistoryData = [];
+    this._statHistoryLoading = true;
+    this._statHistoryOpen = true;
+
+    try {
+      const now = new Date();
+      const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      // Use HA WebSocket API for history
+      const result = await (this._hass as any).callWS({
+        type: 'history/history_during_period',
+        start_time: start.toISOString(),
+        end_time: now.toISOString(),
+        entity_ids: [entityId],
+        minimal_response: true,
+        significant_changes_only: false,
+        no_attributes: true,
+      });
+
+      // Discard if a newer request was made while we were fetching
+      if (requestId !== this._statHistoryRequestId) return;
+
+      // Parse minimal response format:
+      // First entry is a full state object: { state, last_updated (ISO), ... }
+      // Subsequent entries are compact: { s: "25.3", lu: 1234567890.123 }
+      const entries = result?.[entityId];
+      if (Array.isArray(entries)) {
+        const points: HistoryDataPoint[] = [];
+        for (const entry of entries) {
+          // Handle both full (first) and compact (rest) formats
+          const stateStr = entry.s ?? entry.state;
+          const val = parseFloat(stateStr);
+          if (!isFinite(val)) continue;
+
+          let time: number;
+          if (entry.lu) {
+            // Compact format: lu = unix seconds with decimal
+            time = entry.lu * 1000;
+          } else if (entry.last_updated) {
+            // Full format: ISO string
+            time = new Date(entry.last_updated).getTime();
+          } else {
+            continue;
+          }
+          if (time > 0) points.push({ time, value: val });
+        }
+        // Downsample if too many points (avoid huge SVG paths on low-end devices)
+        this._statHistoryData = points.length > 500
+          ? this._downsample(points, 500)
+          : points;
+      }
+    } catch (err) {
+      // Discard errors from stale requests
+      if (requestId !== this._statHistoryRequestId) return;
+      // eslint-disable-next-line no-console
+      console.warn('Failed to fetch stat history:', err);
+      this._statHistoryData = [];
+    } finally {
+      if (requestId === this._statHistoryRequestId) {
+        this._statHistoryLoading = false;
+      }
+    }
+  }
+
+  private _closeStatHistory(): void {
+    this._statHistoryOpen = false;
+  }
+
+  /**
+   * Largest-Triangle-Three-Buckets downsampling.
+   * Preserves visual shape (peaks, valleys) while reducing point count.
+   */
+  private _downsample(data: HistoryDataPoint[], target: number): HistoryDataPoint[] {
+    if (data.length <= target) return data;
+
+    const result: HistoryDataPoint[] = [data[0]]; // always keep first
+    const bucketSize = (data.length - 2) / (target - 2);
+
+    let prevIndex = 0;
+    for (let i = 1; i < target - 1; i++) {
+      const bucketStart = Math.floor((i - 1) * bucketSize) + 1;
+      const bucketEnd = Math.min(Math.floor(i * bucketSize) + 1, data.length - 1);
+      const nextBucketStart = Math.floor(i * bucketSize) + 1;
+      const nextBucketEnd = Math.min(Math.floor((i + 1) * bucketSize) + 1, data.length - 1);
+
+      // Average of next bucket (for triangle area calculation)
+      let avgTime = 0, avgValue = 0;
+      const nextLen = nextBucketEnd - nextBucketStart;
+      for (let j = nextBucketStart; j < nextBucketEnd; j++) {
+        avgTime += data[j].time;
+        avgValue += data[j].value;
+      }
+      avgTime /= nextLen || 1;
+      avgValue /= nextLen || 1;
+
+      // Pick point in current bucket with largest triangle area
+      const prev = data[prevIndex];
+      let maxArea = -1;
+      let bestIdx = bucketStart;
+      for (let j = bucketStart; j < bucketEnd; j++) {
+        const area = Math.abs(
+          (prev.time - avgTime) * (data[j].value - prev.value) -
+          (prev.time - data[j].time) * (avgValue - prev.value),
+        );
+        if (area > maxArea) { maxArea = area; bestIdx = j; }
+      }
+      result.push(data[bestIdx]);
+      prevIndex = bestIdx;
+    }
+
+    result.push(data[data.length - 1]); // always keep last
+    return result;
+  }
+
   private _getLocationName(): string {
     try {
       return (this._hass as any).config?.location_name ?? '';
@@ -449,12 +582,23 @@ export class WeatherDashboardCard extends LitElement {
         </div>
 
         <!-- Stats Grid -->
-        <div class="stats-section">
+        <div class="stats-section" @stat-click=${this._onStatClick}>
           <div class="stats-label">Statistics (Live Updates)</div>
           <div class="stats-grid">
             ${this._renderStats(data, unitSystem)}
           </div>
         </div>
+
+        <!-- Stat History Overlay -->
+        <wdb-stat-history
+          .open=${this._statHistoryOpen}
+          .loading=${this._statHistoryLoading}
+          .statName=${this._statHistoryName}
+          .statUnit=${this._statHistoryUnit}
+          .statIcon=${this._statHistoryIcon}
+          .data=${this._statHistoryData}
+          @close=${this._closeStatHistory}
+        ></wdb-stat-history>
 
       </ha-card>
     `;
@@ -468,6 +612,7 @@ export class WeatherDashboardCard extends LitElement {
       const formatted = formatValue(value, def.key);
       const unit = this._getUnit(def.key);
       const icon = getStatIcon(def.icon, def.key, value, unitSystem);
+      const entityId = this._entities[def.key] ?? '';
 
       return html`
         <wdb-stat-card
@@ -475,6 +620,8 @@ export class WeatherDashboardCard extends LitElement {
           .value=${formatted}
           .unit=${unit}
           .icon=${icon}
+          .entityId=${entityId}
+          .statKey=${def.key}
         ></wdb-stat-card>
       `;
     });
