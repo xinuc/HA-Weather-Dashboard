@@ -184,10 +184,12 @@ export function deriveCondition(input: ConditionInput): WeatherCondition {
   }
 
   // --- Priority 9: Cloud cover (night) ---
+  // Tropical thresholds: 70-82% humidity is NOT clear in the tropics.
+  // Only truly clear when humidity < 70% (rare in tropical maritime climate).
   if (isNight) {
     if (humidity !== undefined) {
       if (humidity >= 92) return 'overcast-night';
-      if (humidity >= 82) return 'partly-cloudy-night';
+      if (humidity >= 70) return 'partly-cloudy-night';
       if (humidity < 70) return 'starry-night';
     }
     return 'clear-night';

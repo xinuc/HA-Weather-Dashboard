@@ -44,16 +44,19 @@ interface SkyAnchor {
 
 const SKY_ANCHORS: SkyAnchor[] = [
   //                                zenith               mid (40-60%)            horizon
+  // Night anchors unchanged — no Mie scattering effect visible
   { elevation: -18, zenith: [10, 10, 30],   mid: [12, 12, 35],    horizon: [15, 15, 40] },      // deep night
   { elevation: -12, zenith: [15, 20, 55],   mid: [20, 22, 58],    horizon: [25, 25, 60] },      // astronomical twilight
   { elevation:  -6, zenith: [25, 40, 90],   mid: [50, 45, 85],    horizon: [60, 50, 80] },      // nautical twilight
   { elevation:  -1, zenith: [40, 60, 120],  mid: [140, 80, 90],   horizon: [180, 100, 60] },    // civil twilight — pink/rose mid
   { elevation:   0, zenith: [60, 90, 160],  mid: [200, 120, 70],  horizon: [220, 130, 60] },    // sunrise/sunset — orange mid
   { elevation:   5, zenith: [80, 130, 200], mid: [170, 155, 130], horizon: [200, 170, 120] },   // golden hour — warm mid
-  { elevation:  10, zenith: [90, 150, 220], mid: [140, 170, 210], horizon: [170, 190, 200] },   // low sun — slight warm
-  { elevation:  20, zenith: [70, 140, 220], mid: [110, 165, 220], horizon: [140, 180, 220] },   // morning/afternoon — blue
-  { elevation:  45, zenith: [50, 120, 210], mid: [85, 145, 215],  horizon: [120, 170, 220] },   // midday — blue
-  { elevation:  90, zenith: [40, 100, 200], mid: [75, 130, 208],  horizon: [110, 160, 215] },   // high noon — blue
+  // Daytime horizons: paler/whiter than temperate due to tropical humidity
+  // and Mie scattering from hygroscopic aerosols. Steep blue→pale gradient.
+  { elevation:  10, zenith: [90, 150, 220], mid: [150, 180, 215], horizon: [185, 200, 218] },   // low sun — pale horizon
+  { elevation:  20, zenith: [70, 140, 220], mid: [125, 175, 222], horizon: [175, 200, 225] },   // morning/afternoon — pale horizon
+  { elevation:  45, zenith: [50, 120, 210], mid: [100, 155, 218], horizon: [165, 195, 225] },   // midday — pale horizon
+  { elevation:  90, zenith: [40, 100, 200], mid: [90, 145, 212],  horizon: [160, 190, 222] },   // high noon — pale horizon
 ];
 
 // ── Cloud Color Targets ────────────────────────────────────────────────────
@@ -66,15 +69,19 @@ interface CloudTarget {
   night: RGB;
 }
 
+// Night targets: warm amber-brown from light pollution reflecting off clouds.
+// Brightness is INVERTED vs day — thicker clouds reflect MORE urban light,
+// making cloudy nights brighter than clear nights (research: 10x amplification).
+// Only storm clouds are dark again (too thick, absorb more than they reflect).
 const CLOUD_TARGETS: Record<CloudState, CloudTarget | null> = {
   'clear':             null,  // no modification
-  'thin-ice-veil':     { day: [200, 215, 235], night: [25, 30, 55] },
-  'thin-haze':         { day: [185, 200, 220], night: [30, 35, 50] },
-  'moderate-ice':      { day: [170, 185, 210], night: [30, 35, 55] },
-  'moderate-overcast': { day: [145, 160, 180], night: [35, 40, 55] },
-  'thick-overcast':    { day: [120, 125, 135], night: [35, 38, 48] },
-  'deep-overcast':     { day: [90, 95, 105],   night: [30, 33, 40] },
-  'storm':             { day: [55, 60, 70],     night: [25, 28, 35] },
+  'thin-ice-veil':     { day: [200, 215, 235], night: [28, 26, 38] },
+  'thin-haze':         { day: [185, 200, 220], night: [35, 32, 35] },
+  'moderate-ice':      { day: [170, 185, 210], night: [42, 38, 35] },
+  'moderate-overcast': { day: [145, 160, 180], night: [50, 44, 38] },
+  'thick-overcast':    { day: [120, 125, 135], night: [55, 48, 40] },   // brightest — max reflection
+  'deep-overcast':     { day: [90, 95, 105],   night: [48, 42, 38] },   // slightly dimmer
+  'storm':             { day: [55, 60, 70],     night: [30, 28, 30] },   // dark again — absorption
 };
 
 // ── Kt ranges for each cloud state ────────────────────────────────────────
@@ -89,6 +96,23 @@ const CLOUD_KT_RANGES: Record<CloudState, [number, number]> = {
   'deep-overcast':     [0.10, 0.25],
   'storm':             [0.00, 0.10],
 };
+
+// ── Cloud Severity Ranking ────────────────────────────────────────────────
+// Higher = cloudier. Used to pick the worse (cloudier) of two estimates.
+const CLOUD_SEVERITY: Record<CloudState, number> = {
+  'clear': 0,
+  'thin-ice-veil': 1,
+  'thin-haze': 2,
+  'moderate-ice': 3,
+  'moderate-overcast': 4,
+  'thick-overcast': 5,
+  'deep-overcast': 6,
+  'storm': 7,
+};
+
+function cloudierOf(a: CloudState, b: CloudState): CloudState {
+  return CLOUD_SEVERITY[a] >= CLOUD_SEVERITY[b] ? a : b;
+}
 
 // ── Core Math ──────────────────────────────────────────────────────────────
 
@@ -237,10 +261,14 @@ function applyHumidityModifier(
   gradient: SkyGradient,
   humidity: number,
   Kt: number,
+  cloudFromHumidity: boolean,
 ): SkyGradient {
-  // Only affects clear to moderate cloud (Kt > 0.50)
-  // Under thick overcast, sky is already gray — humidity has no visual effect
-  if (Kt >= 0 && Kt <= 0.50) return gradient;
+  // Skip at night (Kt < 0) — would wrongly lighten dark sky
+  if (Kt < 0) return gradient;
+  // Skip under thick overcast — sky is already gray
+  if (Kt <= 0.50) return gradient;
+  // Skip when cloud state was already derived from humidity (avoid double-counting)
+  if (cloudFromHumidity) return gradient;
 
   // turbidity T = 2 + humidity/20 → maps 0-100% to T 2-7
   // desaturation = (T - 2) / 8 → normalized 0 to ~0.625
@@ -303,14 +331,16 @@ function applyNightModifiers(
     };
   }
 
-  // Cloudy night: light pollution reflected off clouds → warm brownish-gray
+  // Cloudy night: light pollution reflected off clouds → warm amber-brown glow.
+  // Research (Bosscha Observatory): overcast urban skies 10x brighter than clear.
+  // Dominant color is orange-amber from sodium/LED street lighting.
   if (cloudState !== 'clear' && cloudState !== 'thin-ice-veil') {
-    const lightPollution: RGB = [40, 38, 45];
-    const pollutionWeight = 0.15;
+    const lightPollution: RGB = [60, 48, 35]; // warm amber-brown
+    const pollutionWeight = 0.25; // stronger — urban Java has significant light pollution
     return {
-      zenith: lerpRGB(gradient.zenith, lightPollution, pollutionWeight),
+      zenith: lerpRGB(gradient.zenith, lightPollution, pollutionWeight * 0.7), // less at top
       mid: lerpRGB(gradient.mid, lightPollution, pollutionWeight),
-      horizon: lerpRGB(gradient.horizon, lightPollution, pollutionWeight),
+      horizon: lerpRGB(gradient.horizon, lightPollution, pollutionWeight * 1.2), // more at horizon
     };
   }
 
@@ -328,10 +358,13 @@ function estimateCloudFromHumidity(
   if (rainRate >= 10) return 'storm';
   if (rainRate >= 2.5) return 'deep-overcast';
   if (rainRate >= 0.1) return 'thick-overcast';
+  // Tropical thresholds — aligned with condition engine Priority 9.
+  // In tropical maritime climate, 70-80% humidity commonly accompanies cloud.
   if (humidity !== undefined) {
     if (humidity >= 95) return 'thick-overcast';
     if (humidity >= 90) return 'moderate-overcast';
     if (humidity >= 80) return 'thin-haze';
+    if (humidity >= 70) return 'thin-haze';
   }
   return 'clear';
 }
@@ -383,6 +416,7 @@ export function computeSkyGradient(inputs: SkyInputs): SkyGradient {
   // Step 2: Cloud characterization
   let cloudState: CloudState = 'clear';
   let Kt = -1;
+  let cloudFromHumidity = false; // track source to avoid double-counting
 
   if (!isNight && solarRadiation !== undefined) {
     Kt = computeKt(solarRadiation, sunElevation);
@@ -397,34 +431,51 @@ export function computeSkyGradient(inputs: SkyInputs): SkyGradient {
     } else {
       // Low sun angle — solar comparison unreliable, use humidity/rain fallback
       cloudState = estimateCloudFromHumidity(humidity, rainRate);
-      Kt = cloudState === 'clear' ? 0.9 : 0.4; // approximate for modifier weight
+      cloudFromHumidity = true;
+      // Set approximate Kt to midpoint of the cloud state's range
+      const [lo, hi] = CLOUD_KT_RANGES[cloudState];
+      Kt = (lo + hi) / 2;
     }
 
     gradient = applyCloudModifier(gradient, cloudState, Kt, false);
   } else if (!isNight) {
     // Daytime but no solar radiation sensor — use humidity/rain
     cloudState = estimateCloudFromHumidity(humidity, rainRate);
-    Kt = cloudState === 'clear' ? 0.9 : 0.4;
+    cloudFromHumidity = true;
+    const [lo, hi] = CLOUD_KT_RANGES[cloudState];
+    Kt = (lo + hi) / 2;
     gradient = applyCloudModifier(gradient, cloudState, Kt, false);
   } else {
-    // Night — use cached daytime state
+    // Night — merge cached daytime state with current humidity estimate.
+    // Take the cloudier of the two: if clouds rolled in after sunset,
+    // humidity catches it; if cache is cloudier, it persists until expiry.
     const cached = getCachedNightCloud();
-    cloudState = cached.cloudState;
-    Kt = cached.Kt;
+    const humidityEstimate = estimateCloudFromHumidity(humidity, rainRate);
+    cloudState = cloudierOf(cached.cloudState, humidityEstimate);
 
-    // Rain overrides cached state at night
-    if (rainRate >= 0.1) cloudState = 'storm';
+    // Use Kt from whichever source won, or approximate from humidity estimate
+    if (CLOUD_SEVERITY[humidityEstimate] >= CLOUD_SEVERITY[cached.cloudState]) {
+      const [lo, hi] = CLOUD_KT_RANGES[cloudState];
+      Kt = (lo + hi) / 2;
+    } else {
+      Kt = cached.Kt;
+    }
 
     gradient = applyCloudModifier(gradient, cloudState, Kt, true);
   }
 
-  // Step 3: Humidity / turbidity (only meaningful in daytime with some sky visible)
-  if (humidity !== undefined) {
-    gradient = applyHumidityModifier(gradient, humidity, Kt);
+  // Step 3: Humidity / turbidity (daytime only, when sky color is visible)
+  // At night, humidity is already handled by cloud state estimation.
+  if (!isNight && humidity !== undefined) {
+    gradient = applyHumidityModifier(gradient, humidity, Kt, cloudFromHumidity);
   }
 
-  // Step 4: Rain darkening
-  if (rainRate >= 0.1) {
+  // Step 4: Rain darkening (daytime only)
+  // Skip at night: rain modifier target [55,60,70] is lighter than night cloud
+  // targets, so it would brighten instead of darken. Night cloud state already
+  // accounts for rain via estimateCloudFromHumidity thresholds.
+  // Skip for storm/deep-overcast: cloud modifier already applied dark colors.
+  if (!isNight && rainRate >= 0.1 && cloudState !== 'storm' && cloudState !== 'deep-overcast') {
     gradient = applyRainModifier(gradient, rainRate);
   }
 
