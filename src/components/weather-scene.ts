@@ -71,24 +71,20 @@ export class WeatherScene extends LitElement {
   private _getSkyClass(): string {
     if (this.useDynamicSky) return '';
 
-    // Night
-    if (this.elevation < 0) {
-      if (this.condition.startsWith('thunderstorms')) return 'sky-stormy';
-      if (this.condition === 'rain') return 'sky-night-overcast';
-      if (this.condition === 'overcast-night' || this.condition === 'fog-night') return 'sky-night-overcast';
-      if (this.condition === 'partly-cloudy-night-rain' || this.condition === 'partly-cloudy-night-drizzle') return 'sky-night-overcast';
-      if (this.condition === 'partly-cloudy-night-smoke') return 'sky-night-overcast';
-      if (this.condition === 'haze-night' || this.condition === 'partly-cloudy-night-haze') return 'sky-night';
-      return 'sky-night';
+    if (this.condition.startsWith('thunderstorms')) return 'sky-stormy';
+
+    // Conditions that always show overcast sky regardless of time
+    const overcastConditions: string[] = [
+      'rain', 'cloudy', 'overcast-day', 'overcast-night', 'fog-day', 'fog-night',
+      'partly-cloudy-day-rain', 'partly-cloudy-night-rain',
+      'partly-cloudy-day-drizzle', 'partly-cloudy-night-drizzle',
+      'partly-cloudy-day-smoke', 'partly-cloudy-night-smoke',
+    ];
+    if (overcastConditions.includes(this.condition)) {
+      return this.elevation < 0 ? 'sky-night-overcast' : 'sky-overcast';
     }
 
-    // Day
-    if (this.condition.startsWith('thunderstorms')) return 'sky-stormy';
-    if (this.condition === 'cloudy' || this.condition === 'overcast-day' || this.condition === 'fog-day') return 'sky-overcast';
-    if (this.condition === 'rain') return 'sky-overcast';
-    if (this.condition === 'partly-cloudy-day-smoke') return 'sky-overcast';
-    if (this.condition === 'haze-day' || this.condition === 'partly-cloudy-day-haze') return 'sky-day';
-    return 'sky-day';
+    return this.elevation < 0 ? 'sky-night' : 'sky-day';
   }
 
   private _renderStars() {

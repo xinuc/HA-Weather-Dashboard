@@ -240,8 +240,7 @@ export class WeatherDashboardCard extends LitElement {
     return data;
   }
 
-  private _getCondition(isNight: boolean, elevation: number, aqiValue?: number, moonPhase?: string): WeatherCondition {
-    const data = this._getSensorData();
+  private _getCondition(data: SensorData, isNight: boolean, elevation: number, aqiValue?: number, moonPhase?: string): WeatherCondition {
     const haCondition = this._config?.weather_entity
       ? this._hass?.states[this._config.weather_entity]?.state
       : undefined;
@@ -290,6 +289,8 @@ export class WeatherDashboardCard extends LitElement {
         solarRadiationEntity: this._entities.solar_radiation,
         uvIndexEntity: this._entities.uv_index,
         rainRateEntity: this._entities.rain_rate,
+        windSpeedEntity: this._entities.wind_speed,
+        dewPointEntity: this._entities.dew_point,
         aqiEntity: this._config.aqi_entity,
       };
 
@@ -478,7 +479,7 @@ export class WeatherDashboardCard extends LitElement {
       }
     }
 
-    const condition = this._getCondition(isNight, elevation, aqiValue, moonPhase);
+    const condition = this._getCondition(data, isNight, elevation, aqiValue, moonPhase);
 
     // Units from actual entities
     const tempUnit = this._getUnit('temperature') || '°C';

@@ -97,6 +97,8 @@ export interface SkyHistoryEntities {
   solarRadiationEntity?: string;
   uvIndexEntity?: string;
   rainRateEntity?: string;
+  windSpeedEntity?: string;
+  dewPointEntity?: string;
   aqiEntity?: string;          // PM2.5 entity for smoke/haze conditions
 }
 
@@ -127,6 +129,8 @@ export async function reconstructSkyHistory(
   if (entities.solarRadiationEntity) entityIds.push(entities.solarRadiationEntity);
   if (entities.uvIndexEntity) entityIds.push(entities.uvIndexEntity);
   if (entities.rainRateEntity) entityIds.push(entities.rainRateEntity);
+  if (entities.windSpeedEntity) entityIds.push(entities.windSpeedEntity);
+  if (entities.dewPointEntity) entityIds.push(entities.dewPointEntity);
   if (entities.aqiEntity) entityIds.push(entities.aqiEntity);
 
   if (entityIds.length === 0) return [];
@@ -160,6 +164,8 @@ export async function reconstructSkyHistory(
   const solarTimeline: NumericEntry[] = [];
   const uvTimeline: NumericEntry[] = [];
   const rainTimeline: NumericEntry[] = [];
+  const windTimeline: NumericEntry[] = [];
+  const dewPointTimeline: NumericEntry[] = [];
   const aqiTimeline: NumericEntry[] = [];
 
   // Parse weather entity
@@ -210,12 +216,15 @@ export async function reconstructSkyHistory(
   solarTimeline.push(...parseNumericTimeline(entities.solarRadiationEntity));
   uvTimeline.push(...parseNumericTimeline(entities.uvIndexEntity));
   rainTimeline.push(...parseNumericTimeline(entities.rainRateEntity));
+  windTimeline.push(...parseNumericTimeline(entities.windSpeedEntity));
+  dewPointTimeline.push(...parseNumericTimeline(entities.dewPointEntity));
   aqiTimeline.push(...parseNumericTimeline(entities.aqiEntity));
 
   // Collect all unique timestamps where ANY entity changed
   const allTimestamps = new Set<number>();
   for (const tl of [weatherTimeline, sunTimeline, moonTimeline,
-    tempTimeline, humidityTimeline, solarTimeline, uvTimeline, rainTimeline, aqiTimeline]) {
+    tempTimeline, humidityTimeline, solarTimeline, uvTimeline, rainTimeline,
+    windTimeline, dewPointTimeline, aqiTimeline]) {
     for (const entry of tl) {
       allTimestamps.add(entry.time);
     }
@@ -249,6 +258,8 @@ export async function reconstructSkyHistory(
     const solarState = getValueAt(solarTimeline, ts);
     const uvState = getValueAt(uvTimeline, ts);
     const rainState = getValueAt(rainTimeline, ts);
+    const windState = getValueAt(windTimeline, ts);
+    const dewPointState = getValueAt(dewPointTimeline, ts);
     const aqiState = getValueAt(aqiTimeline, ts);
 
     // Compute sun elevation from lat/lng at this timestamp
@@ -263,6 +274,8 @@ export async function reconstructSkyHistory(
         solar_radiation: solarState?.value,
         uv_index: uvState?.value,
         rain_rate: rainState?.value,
+        wind_speed: windState?.value,
+        dew_point: dewPointState?.value,
       },
       isNight,
       sunElevation: elevation,

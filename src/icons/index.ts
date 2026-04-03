@@ -1,4 +1,5 @@
 import { BEAUFORT_SCALE } from '../const';
+import { WeatherCondition } from '../types';
 import { toKmh } from '../utils';
 
 // Stats icons
@@ -66,7 +67,6 @@ import thunderstormsDayRain from './conditions/thunderstorms-day-rain.svg';
 import thunderstormsNight from './conditions/thunderstorms-night.svg';
 import thunderstormsNightRain from './conditions/thunderstorms-night-rain.svg';
 import thunderstormsRain from './conditions/thunderstorms-rain.svg';
-import drizzle from './conditions/drizzle.svg';
 import partlyCloudyDayDrizzle from './conditions/partly-cloudy-day-drizzle.svg';
 import partlyCloudyNightDrizzle from './conditions/partly-cloudy-night-drizzle.svg';
 import hazeDay from './conditions/haze-day.svg';
@@ -135,7 +135,7 @@ const UV_ICONS: string[] = [
   uvIndex6, uvIndex7, uvIndex8, uvIndex9, uvIndex10, uvIndex11,
 ];
 
-const CONDITION_ICONS: Record<string, string> = {
+const CONDITION_ICONS: Record<WeatherCondition | 'not-available' | 'thunderstorms', string> = {
   'clear-day': clearDay,
   'clear-night': clearNight,
   'cloudy': cloudy,
@@ -158,7 +158,6 @@ const CONDITION_ICONS: Record<string, string> = {
   'thunderstorms-night': thunderstormsNight,
   'thunderstorms-night-rain': thunderstormsNightRain,
   'thunderstorms-rain': thunderstormsRain,
-  'drizzle': drizzle,
   'partly-cloudy-day-drizzle': partlyCloudyDayDrizzle,
   'partly-cloudy-night-drizzle': partlyCloudyNightDrizzle,
   'haze-day': hazeDay,
@@ -223,9 +222,9 @@ export function getStatIcon(
   return STAT_ICONS[iconName] ?? notAvailable;
 }
 
-export function getConditionIcon(condition: string): string {
-  // Condition names map directly to icon names
-  return CONDITION_ICONS[condition] ?? CONDITION_ICONS['not-available'];
+export function getConditionIcon(condition: WeatherCondition | string): string {
+  const key = condition as keyof typeof CONDITION_ICONS;
+  return CONDITION_ICONS[key] ?? CONDITION_ICONS['not-available'];
 }
 
 export function getMoonIcon(phase: string): string {

@@ -48,7 +48,6 @@ export const CONDITION_LABELS: Record<WeatherCondition, string> = {
   'fog-day': 'Fog',
   'fog-night': 'Fog',
   'rain': 'Rain',
-  'drizzle': 'Drizzle',
   'partly-cloudy-day-drizzle': 'Drizzle',
   'partly-cloudy-night-drizzle': 'Drizzle',
   'partly-cloudy-day-rain': 'Light Rain',

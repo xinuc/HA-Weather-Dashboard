@@ -38,14 +38,6 @@ function toMmh(rainRate: number, unit: string): number {
 }
 
 /**
- * Compute dew point spread in the same unit as inputs.
- * Both temperature and dew_point must be in the same unit.
- */
-function dewPointSpread(temperature: number, dewPoint: number): number {
-  return temperature - dewPoint;
-}
-
-/**
  * Map HA standard weather entity condition to our condition set.
  * Used internally as a fallback when sensor data is unavailable.
  */
@@ -62,7 +54,7 @@ function mapHaCondition(haCondition: string, isNight: boolean): WeatherCondition
     case 'rainy':
       return 'rain';
     case 'pouring':
-      return 'thunderstorms-rain';
+      return 'rain';
     case 'snowy':
       return 'cloudy'; // no snow in tropics, show as cloudy
     case 'lightning':
@@ -176,15 +168,6 @@ function deriveBaseCondition(input: ConditionInput): WeatherCondition {
 
   // ── Priority 5a: Light rain 1.0–2.5 mm/h ─────────────────────────────
   if (rainMmh >= 1.0) {
-    if (sunElevation > 5 && solar_radiation !== undefined) {
-      const expected = clearSkyRadiation(sunElevation);
-      if (expected > 20) {
-        const cloudRatio = solar_radiation / expected;
-        if (cloudRatio > 0.40) {
-          return isNight ? 'partly-cloudy-night-rain' : 'partly-cloudy-day-rain';
-        }
-      }
-    }
     return isNight ? 'partly-cloudy-night-rain' : 'partly-cloudy-day-rain';
   }
 
@@ -202,11 +185,11 @@ function deriveBaseCondition(input: ConditionInput): WeatherCondition {
 
   // ── Priority 7: Fog (sensor or HA fallback) ──────────────────────────
   if (humidity !== undefined && temperature !== undefined && dew_point !== undefined) {
-    const spread = dewPointSpread(temperature, dew_point);
-    if (humidity >= 97 && spread <= 1.0) {
+    const dpSpread = temperature - dew_point;
+    if (humidity >= 97 && dpSpread <= 1.0) {
       return isNight ? 'fog-night' : 'fog-day';
     }
-    if (humidity >= 95 && spread <= 1.5) {
+    if (humidity >= 95 && dpSpread <= 1.5) {
       return isNight ? 'fog-night' : 'fog-day';
     }
   } else if (haBase === 'fog-day' || haBase === 'fog-night') {
@@ -245,7 +228,7 @@ function deriveBaseCondition(input: ConditionInput): WeatherCondition {
         if (humidity >= 90) return applyTwilight('cloudy', sunElevation, timestamp);
         if (humidity >= 80) return applyTwilight('partly-cloudy-day', sunElevation, timestamp);
       }
-      if (haBase === 'cloudy' || haBase === 'overcast-day' || haBase === 'partly-cloudy-day') {
+      if (haBase === 'cloudy' || haBase === 'partly-cloudy-day') {
         return applyTwilight(haBase, sunElevation, timestamp);
       }
       return applyTwilight('clear-day', sunElevation, timestamp);
@@ -259,7 +242,7 @@ function deriveBaseCondition(input: ConditionInput): WeatherCondition {
       if (humidity >= 70) return applyTwilight('partly-cloudy-night', sunElevation, timestamp);
       if (humidity < 70) return applyTwilight('starry-night', sunElevation, timestamp);
     }
-    if (haBase === 'overcast-night' || haBase === 'partly-cloudy-night' || haBase === 'cloudy') {
+    if (haBase === 'partly-cloudy-night' || haBase === 'cloudy') {
       const mapped = haBase === 'cloudy' ? 'overcast-night' as WeatherCondition : haBase;
       return applyTwilight(mapped, sunElevation, timestamp);
     }

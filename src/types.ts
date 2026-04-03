@@ -64,7 +64,6 @@ export type WeatherCondition =
   | 'fog-day'
   | 'fog-night'
   | 'rain'
-  | 'drizzle'
   | 'partly-cloudy-day-drizzle'
   | 'partly-cloudy-night-drizzle'
   | 'partly-cloudy-day-rain'
