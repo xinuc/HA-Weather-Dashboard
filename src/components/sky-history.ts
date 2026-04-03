@@ -19,17 +19,30 @@ const THUMB_STARS = [
 @customElement('wdb-sky-history')
 export class SkyHistory extends LitElement {
   @property({ type: Array }) entries: readonly SkyHistoryEntry[] = [];
+  @property({ type: Boolean }) loading = false;
   @property({ type: Boolean }) open = false;
   @property() tempUnit = '°C';
 
+  @query('.history-panel') private _panel?: HTMLElement;
   @query('.history-timeline') private _timeline?: HTMLElement;
   @query('.history-connector') private _connector?: HTMLElement;
 
   static styles = skyHistoryStyles;
 
   updated(changed: Map<string, unknown>): void {
+    // Focus the panel so Escape key works
     if (changed.has('open') && this.open) {
-      // Auto-scroll to latest entry after panel animation
+      requestAnimationFrame(() => {
+        this._panel?.focus();
+      });
+    }
+
+    // Auto-scroll to latest entry when panel opens or entries arrive
+    const shouldScroll =
+      (changed.has('open') && this.open) ||
+      (changed.has('entries') && this.open && this.entries.length > 0);
+
+    if (shouldScroll) {
       setTimeout(() => {
         if (this._timeline) {
           this._timeline.scrollLeft = this._timeline.scrollWidth;
@@ -41,17 +54,13 @@ export class SkyHistory extends LitElement {
     }
   }
 
-  private _onBackdropClick(): void {
-    this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
-  }
-
-  private _onCloseClick(): void {
+  private _close(): void {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
   }
 
   private _onKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
-      this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
+      this._close();
     }
   }
 
@@ -116,30 +125,38 @@ export class SkyHistory extends LitElement {
     return html`
       <div
         class="history-overlay ${this.open ? 'open' : ''}"
-        @keydown=${this._onKeyDown}
         role="dialog"
         aria-label="Sky condition history"
       >
-        <div class="history-backdrop" @click=${this._onBackdropClick}></div>
-        <div class="history-panel">
+        <div class="history-backdrop" @click=${this._close}></div>
+        <div class="history-panel" tabindex="-1" @keydown=${this._onKeyDown}>
           <div class="history-header">
             <span class="history-title">Sky History</span>
             <button
               class="history-close"
-              @click=${this._onCloseClick}
+              @click=${this._close}
               aria-label="Close sky history"
             >✕</button>
           </div>
 
-          <div class="history-timeline" @scroll=${this._onTimelineScroll}>
-            ${this.entries.map((entry, i) =>
-              this._renderThumb(entry, i === this.entries.length - 1)
-            )}
-          </div>
+          ${this.loading ? html`
+            <div class="history-loading">
+              <div class="loading-spinner"></div>
+              Loading sky history...
+            </div>
+          ` : this.entries.length === 0 ? html`
+            <div class="history-empty">No sky history available</div>
+          ` : html`
+            <div class="history-timeline" @scroll=${this._onTimelineScroll}>
+              ${this.entries.map((entry, i) =>
+                this._renderThumb(entry, i === this.entries.length - 1)
+              )}
+            </div>
 
-          <div class="history-connector">
-            ${this._renderConnector()}
-          </div>
+            <div class="history-connector">
+              ${this._renderConnector()}
+            </div>
+          `}
         </div>
       </div>
     `;

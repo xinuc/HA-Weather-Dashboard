@@ -5,8 +5,8 @@ import { STAT_DEFINITIONS } from './const';
 import { dashboardStyles } from './styles/dashboard';
 import { resolveSensorEntities } from './device-discovery';
 import { deriveCondition, mapHaCondition, getIsNight, getSunElevation, getMoonPhase } from './condition-engine';
-import { computeSkyGradient, SkyGradient, SkyInputs } from './sky-color';
-import { SkyHistoryStore } from './sky-history-store';
+// sky-color is used directly by weather-scene component
+import { SkyHistoryEntry, reconstructSkyHistory, SkyHistoryEntities } from './sky-history-store';
 import { formatValue, getBeaufortLabel, bearingToDirection, toKmh } from './utils';
 import { getStatIcon } from './icons';
 import { HistoryDataPoint } from './components/stat-history';
@@ -23,6 +23,8 @@ import './components/stat-history';
 export class WeatherDashboardCard extends LitElement {
   @state() private _config!: WeatherDashboardConfig;
   @state() private _skyHistoryOpen = false;
+  @state() private _skyHistoryLoading = false;
+  @state() private _skyHistoryEntries: SkyHistoryEntry[] = [];
   @state() private _statHistoryOpen = false;
   @state() private _statHistoryLoading = false;
   @state() private _statHistoryData: HistoryDataPoint[] = [];
@@ -30,9 +32,9 @@ export class WeatherDashboardCard extends LitElement {
   @state() private _statHistoryUnit = '';
   @state() private _statHistoryIcon = '';
   private _statHistoryRequestId = 0;
+  private _skyHistoryRequestId = 0;
   private _hass!: HomeAssistant;
   private _entities: Partial<Record<SensorRole, string>> = {};
-  private _skyHistoryStore = new SkyHistoryStore();
   private _resizeObserver?: ResizeObserver;
   private _intersectionObserver?: IntersectionObserver;
 
@@ -285,8 +287,62 @@ export class WeatherDashboardCard extends LitElement {
     }
   }
 
-  private _toggleSkyHistory(): void {
-    this._skyHistoryOpen = !this._skyHistoryOpen;
+  private async _toggleSkyHistory(): Promise<void> {
+    if (this._skyHistoryOpen) {
+      this._skyHistoryOpen = false;
+      return;
+    }
+
+    // Open immediately with loading state
+    this._skyHistoryEntries = [];
+    this._skyHistoryLoading = true;
+    this._skyHistoryOpen = true;
+
+    // Fetch sky history from HA
+    const requestId = ++this._skyHistoryRequestId;
+
+    try {
+      // Build entity map for reconstruction
+      const entities: SkyHistoryEntities = {
+        weatherEntity: this._config.weather_entity,
+        sunEntity: 'sun.sun',
+        moonEntity: getMoonPhase(this._hass) !== undefined
+          ? (this._config as any).moon_entity || 'sensor.moon_phase'
+          : undefined,
+        temperatureEntity: this._entities.temperature,
+        humidityEntity: this._entities.humidity,
+        solarRadiationEntity: this._entities.solar_radiation,
+        uvIndexEntity: this._entities.uv_index,
+        rainRateEntity: this._entities.rain_rate,
+      };
+
+      // Get lat/lng from config or HA
+      const latitude = this._config.latitude ?? (this._hass as any).config?.latitude;
+      const longitude = this._config.longitude ?? (this._hass as any).config?.longitude;
+
+      if (latitude === undefined || longitude === undefined) {
+        console.warn('[sky-history] No lat/lng available for reconstruction');
+        return;
+      }
+
+      const entries = await reconstructSkyHistory(
+        this._hass,
+        entities,
+        latitude,
+        longitude,
+      );
+
+      // Guard against stale results (user closed & reopened with different timing)
+      if (requestId !== this._skyHistoryRequestId) return;
+
+      this._skyHistoryEntries = entries;
+    } catch (err) {
+      console.warn('[sky-history] Reconstruction failed:', err);
+    } finally {
+      if (requestId === this._skyHistoryRequestId) {
+        this._skyHistoryLoading = false;
+      }
+    }
   }
 
   private _closeSkyHistory(): void {
@@ -460,34 +516,6 @@ export class WeatherDashboardCard extends LitElement {
     // Moon illumination (0-1) from moon phase name
     const moonIllumination = this._getMoonIllumination(moonPhase);
 
-    // Sky history: compute gradient and record state
-    const STARS_CONDITIONS: WeatherCondition[] = ['clear-night', 'starry-night', 'partly-cloudy-night'];
-    const MOON_CONDITIONS: WeatherCondition[] = ['clear-night', 'starry-night'];
-    const showStars = STARS_CONDITIONS.includes(condition);
-    const showMoon = elevation < -6 && !!moonPhase && MOON_CONDITIONS.includes(condition);
-
-    if (useDynamicSky) {
-      const skyInputs: SkyInputs = {
-        sunElevation: elevation,
-        solarRadiation: data.solar_radiation,
-        uvIndex: data.uv_index,
-        humidity: data.humidity,
-        rainRate: data.rain_rate,
-        moonIllumination,
-        isNight,
-      };
-      const skyGradient = computeSkyGradient(skyInputs);
-
-      this._skyHistoryStore.record({
-        condition,
-        skyGradient,
-        temperature: data.temperature,
-        showStars,
-        showMoon,
-        moonPhase,
-      });
-    }
-
     // AQI
     let aqiValue: number | undefined;
     if (this._config.aqi_entity) {
@@ -541,7 +569,8 @@ export class WeatherDashboardCard extends LitElement {
               .aqiValue=${aqiValue}
               .moonPhase=${moonPhase}
               .useDynamicSky=${useDynamicSky}
-              .skyHistoryEntries=${this._skyHistoryStore.entries}
+              .skyHistoryEntries=${this._skyHistoryEntries}
+              .skyHistoryLoading=${this._skyHistoryLoading}
               .skyHistoryOpen=${this._skyHistoryOpen}
               @icon-click=${this._toggleSkyHistory}
               @history-close=${this._closeSkyHistory}

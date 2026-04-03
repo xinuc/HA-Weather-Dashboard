@@ -379,18 +379,41 @@ let _lastDayTimestamp = 0;
 
 const CACHE_EXPIRY_MS = 3 * 60 * 60 * 1000; // 3 hours
 
-function updateDayCache(cloudState: CloudState, Kt: number): void {
+function updateDayCache(cloudState: CloudState, Kt: number, now?: number): void {
   _lastDayCloudState = cloudState;
   _lastDayKt = Kt;
-  _lastDayTimestamp = Date.now();
+  _lastDayTimestamp = now ?? Date.now();
 }
 
-function getCachedNightCloud(): { cloudState: CloudState; Kt: number } {
-  if (Date.now() - _lastDayTimestamp > CACHE_EXPIRY_MS) {
+function getCachedNightCloud(now?: number): { cloudState: CloudState; Kt: number } {
+  if ((now ?? Date.now()) - _lastDayTimestamp > CACHE_EXPIRY_MS) {
     // Cache expired — assume moderate cloud (safe default for tropics)
     return { cloudState: 'moderate-overcast', Kt: 0.6 };
   }
   return { cloudState: _lastDayCloudState, Kt: _lastDayKt };
+}
+
+/** Snapshot of the night cloud cache for save/restore. */
+export interface NightCloudCacheSnapshot {
+  cloudState: CloudState;
+  Kt: number;
+  timestamp: number;
+}
+
+/** Save the current night cloud cache state (for restoration after batch operations). */
+export function saveNightCloudCache(): NightCloudCacheSnapshot {
+  return {
+    cloudState: _lastDayCloudState,
+    Kt: _lastDayKt,
+    timestamp: _lastDayTimestamp,
+  };
+}
+
+/** Restore a previously saved night cloud cache state. */
+export function restoreNightCloudCache(snapshot: NightCloudCacheSnapshot): void {
+  _lastDayCloudState = snapshot.cloudState;
+  _lastDayKt = snapshot.Kt;
+  _lastDayTimestamp = snapshot.timestamp;
 }
 
 // ── Main Entry Point ───────────────────────────────────────────────────────
@@ -398,8 +421,13 @@ function getCachedNightCloud(): { cloudState: CloudState; Kt: number } {
 /**
  * Compute dynamic sky gradient from sensor data.
  * Pipeline: elevation base → cloud characterization → humidity → rain → night.
+ *
+ * @param inputs  Sensor readings for sky computation
+ * @param timestamp  Optional: override the "current time" for cache operations.
+ *                   Used during batch reconstruction to maintain correct
+ *                   night cloud cache timing across historical time points.
  */
-export function computeSkyGradient(inputs: SkyInputs): SkyGradient {
+export function computeSkyGradient(inputs: SkyInputs, timestamp?: number): SkyGradient {
   const {
     sunElevation,
     solarRadiation,
@@ -427,7 +455,7 @@ export function computeSkyGradient(inputs: SkyInputs): SkyGradient {
         ? computeSpectralRatio(uvIndex, Kt, sunElevation)
         : 1.0;
       cloudState = classifyCloud(Kt, spectralRatio, rainRate);
-      updateDayCache(cloudState, Kt);
+      updateDayCache(cloudState, Kt, timestamp);
     } else {
       // Low sun angle — solar comparison unreliable, use humidity/rain fallback
       cloudState = estimateCloudFromHumidity(humidity, rainRate);
@@ -449,7 +477,7 @@ export function computeSkyGradient(inputs: SkyInputs): SkyGradient {
     // Night — merge cached daytime state with current humidity estimate.
     // Take the cloudier of the two: if clouds rolled in after sunset,
     // humidity catches it; if cache is cloudier, it persists until expiry.
-    const cached = getCachedNightCloud();
+    const cached = getCachedNightCloud(timestamp);
     const humidityEstimate = estimateCloudFromHumidity(humidity, rainRate);
     cloudState = cloudierOf(cached.cloudState, humidityEstimate);
 

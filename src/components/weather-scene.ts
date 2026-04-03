@@ -53,6 +53,7 @@ export class WeatherScene extends LitElement {
   @property({ type: Boolean }) narrow = false;
   @property({ type: Boolean }) useDynamicSky = false;
   @property({ type: Array }) skyHistoryEntries: readonly SkyHistoryEntry[] = [];
+  @property({ type: Boolean }) skyHistoryLoading = false;
   @property({ type: Boolean }) skyHistoryOpen = false;
 
   static styles = weatherSceneStyles;
@@ -180,6 +181,7 @@ export class WeatherScene extends LitElement {
           <!-- Sky History Overlay -->
           <wdb-sky-history
             .entries=${this.skyHistoryEntries}
+            .loading=${this.skyHistoryLoading}
             .open=${this.skyHistoryOpen}
             .tempUnit=${this.tempUnit}
             @close=${this._onHistoryClose}

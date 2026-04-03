@@ -50,6 +50,10 @@ export const skyHistoryStyles = css`
     transform: translateY(0);
   }
 
+  .history-panel:focus {
+    outline: none;
+  }
+
   .history-header {
     display: flex;
     align-items: center;
@@ -187,7 +191,6 @@ export const skyHistoryStyles = css`
     display: flex;
     align-items: center;
     padding: 2px 14px 0;
-    gap: 0;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -225,5 +228,41 @@ export const skyHistoryStyles = css`
   .connector-line {
     height: 1px;
     background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* ─── Loading State ─── */
+
+  .history-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+    opacity: 0.5;
+    font-size: 0.78rem;
+  }
+
+  .loading-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-top-color: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 10px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ─── Empty State ─── */
+
+  .history-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+    opacity: 0.4;
+    font-size: 0.78rem;
   }
 `;
