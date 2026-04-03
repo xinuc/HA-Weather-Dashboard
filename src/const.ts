@@ -58,6 +58,16 @@ export const CONDITION_LABELS: Record<WeatherCondition, string> = {
   'wind': 'Windy',
 };
 
+/** Conditions where stars are visible in the sky */
+export const STARS_VISIBLE_CONDITIONS: WeatherCondition[] = [
+  'clear-night', 'starry-night', 'partly-cloudy-night',
+];
+
+/** Conditions where the moon is visible (clear skies only) */
+export const MOON_VISIBLE_CONDITIONS: WeatherCondition[] = [
+  'clear-night', 'starry-night',
+];
+
 export const COMPASS_POINTS = [
   'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',

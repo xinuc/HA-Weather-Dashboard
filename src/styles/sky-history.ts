@@ -36,9 +36,7 @@ export const skyHistoryStyles = css`
   .history-panel {
     position: relative;
     z-index: 1;
-    background: rgba(10, 15, 30, 0.92);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(10, 15, 30, 0.95);
     border-radius: 10px 10px 0 0;
     padding: 12px 0 10px;
     transform: translateY(100%);

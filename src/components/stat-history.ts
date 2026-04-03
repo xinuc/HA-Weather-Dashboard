@@ -2,6 +2,8 @@ import { LitElement, html, svg } from 'lit';
 import { customElement, property, query } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { statHistoryStyles } from '../styles/stat-history';
+import { formatHistoryTime } from '../utils';
+import { OverlayMixin } from './overlay-mixin';
 
 export interface HistoryDataPoint {
   time: number;   // unix ms
@@ -15,7 +17,7 @@ export interface HistoryDataPoint {
  * a pure presentation component with no HA dependency.
  */
 @customElement('wdb-stat-history')
-export class StatHistory extends LitElement {
+export class StatHistory extends OverlayMixin(LitElement) {
   @property({ type: Boolean }) open = false;
   @property({ type: Boolean }) loading = false;
   @property() statName = '';
@@ -23,18 +25,9 @@ export class StatHistory extends LitElement {
   @property() statIcon = '';
   @property({ type: Array }) data: HistoryDataPoint[] = [];
 
-  @query('.history-panel') private _panel?: HTMLElement;
+  @query('.history-panel') declare _panel: HTMLElement | undefined;
 
   static styles = statHistoryStyles;
-
-  updated(changed: Map<string, unknown>): void {
-    if (changed.has('open') && this.open) {
-      // Focus the panel so Escape key works
-      requestAnimationFrame(() => {
-        this._panel?.focus();
-      });
-    }
-  }
 
   // ── helpers ──────────────────────────────────────────────
 
@@ -70,11 +63,7 @@ export class StatHistory extends LitElement {
   }
 
   private _formatTime(ts: number): string {
-    return new Date(ts).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
+    return formatHistoryTime(ts);
   }
 
   // ── chart rendering ──────────────────────────────────────
@@ -299,18 +288,6 @@ export class StatHistory extends LitElement {
     }
 
     return labels;
-  }
-
-  // ── event handlers ───────────────────────────────────────
-
-  private _close(): void {
-    this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
-  }
-
-  private _onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
-      this._close();
-    }
   }
 
   // ── render ───────────────────────────────────────────────

@@ -4,10 +4,10 @@ import { WeatherDashboardConfig, HomeAssistant, SensorData, SensorRole, WeatherC
 import { STAT_DEFINITIONS } from './const';
 import { dashboardStyles } from './styles/dashboard';
 import { resolveSensorEntities } from './device-discovery';
-import { deriveCondition, mapHaCondition, getIsNight, getSunElevation, getMoonPhase } from './condition-engine';
+import { deriveCondition, getIsNight, getSunElevation, getMoonPhase } from './condition-engine';
 // sky-color is used directly by weather-scene component
 import { SkyHistoryEntry, reconstructSkyHistory, SkyHistoryEntities } from './sky-history-store';
-import { formatValue, getBeaufortLabel, bearingToDirection, toKmh } from './utils';
+import { formatValue, getBeaufortLabel, bearingToDirection, toKmh, moonIllumination, isValidState, parseNumericHistoryEntry } from './utils';
 import { getStatIcon } from './icons';
 import { HistoryDataPoint } from './components/stat-history';
 
@@ -148,7 +148,7 @@ export class WeatherDashboardCard extends LitElement {
     const entityId = this._entities[role];
     if (entityId) {
       const s = this._hass?.states[entityId];
-      if (s && s.state !== 'unavailable' && s.state !== 'unknown') return s;
+      if (s && isValidState(s.state)) return s;
     }
     return undefined;
   }
@@ -214,10 +214,6 @@ export class WeatherDashboardCard extends LitElement {
   // Check if HA is configured for metric
   private _isHaMetric(): boolean {
     try {
-      const locale = (this._hass as any).locale;
-      if (locale?.number_format) {
-        // HA 2023.3+ has unit_system in config
-      }
       const config = (this._hass as any).config;
       if (config?.unit_system) {
         return config.unit_system.temperature === '°C';
@@ -245,63 +241,21 @@ export class WeatherDashboardCard extends LitElement {
   }
 
   private _getCondition(isNight: boolean, elevation: number): WeatherCondition {
-    // Weather entity provides condition directly — map to our condition set
-    if (this._config?.weather_entity) {
-      const weather = this._hass?.states[this._config.weather_entity];
-      if (weather?.state) {
-        return this._applyTwilight(mapHaCondition(weather.state, isNight), elevation);
-      }
-    }
-
-    // Derive from sensor data
     const data = this._getSensorData();
-    const speedUnit = this._getUnit('wind_speed') || 'km/h';
-    const rainUnit = this._getUnit('rain_rate') || 'mm/h';
+    const haCondition = this._config?.weather_entity
+      ? this._hass?.states[this._config.weather_entity]?.state
+      : undefined;
 
-    const condition = deriveCondition({
+    return deriveCondition({
       sensors: data,
       isNight,
       sunElevation: elevation,
-      speedUnit,
-      rainUnit,
+      speedUnit: this._getUnit('wind_speed') || 'km/h',
+      rainUnit: this._getUnit('rain_rate') || 'mm/h',
+      haCondition,
     });
-
-    return this._applyTwilight(condition, elevation);
   }
 
-  /**
-   * During twilight / golden hour (-6° to 4°), show sunrise/sunset icon
-   * instead of clear/partly-cloudy when conditions are non-precipitation.
-   * At 4° the sun is ~15 min after rise / before set in the tropics.
-   */
-  private _applyTwilight(condition: WeatherCondition, elevation: number): WeatherCondition {
-    if (elevation < -6 || elevation > 4) return condition;
-    const eligible = condition === 'clear-night' || condition === 'clear-day'
-      || condition === 'partly-cloudy-day' || condition === 'partly-cloudy-night';
-    if (!eligible) return condition;
-    const hour = new Date().getHours();
-    return hour < 12 ? 'sunrise' : 'sunset';
-  }
-
-  /**
-   * Approximate moon illumination (0-1) from HA moon phase name.
-   * Used by the sky color engine for night sky brightness.
-   */
-  private _getMoonIllumination(phase?: string): number {
-    if (!phase) return 0;
-    const p = phase.toLowerCase().replace(/[_\s]/g, '');
-    switch (p) {
-      case 'newmoon': return 0;
-      case 'waxingcrescent': return 0.15;
-      case 'firstquarter': return 0.5;
-      case 'waxinggibbous': return 0.75;
-      case 'fullmoon': return 1.0;
-      case 'waninggibbous': return 0.75;
-      case 'lastquarter': case 'thirdquarter': return 0.5;
-      case 'waningcrescent': return 0.15;
-      default: return 0;
-    }
-  }
 
   private async _toggleSkyHistory(): Promise<void> {
     if (this._skyHistoryOpen) {
@@ -309,8 +263,7 @@ export class WeatherDashboardCard extends LitElement {
       return;
     }
 
-    // Open immediately with loading state
-    this._skyHistoryEntries = [];
+    // Open immediately with loading state (batch into single render)
     this._skyHistoryLoading = true;
     this._skyHistoryOpen = true;
 
@@ -346,15 +299,18 @@ export class WeatherDashboardCard extends LitElement {
         entities,
         latitude,
         longitude,
+        this._getUnit('wind_speed') || 'km/h',
+        this._getUnit('rain_rate') || 'mm/h',
       );
 
       // Guard against stale results (user closed & reopened with different timing)
       if (requestId !== this._skyHistoryRequestId) return;
 
+      // Batch entries + loading into a single render by setting both together
+      this._skyHistoryLoading = false;
       this._skyHistoryEntries = entries;
     } catch (err) {
       console.warn('[sky-history] Reconstruction failed:', err);
-    } finally {
       if (requestId === this._skyHistoryRequestId) {
         this._skyHistoryLoading = false;
       }
@@ -363,6 +319,7 @@ export class WeatherDashboardCard extends LitElement {
 
   private _closeSkyHistory(): void {
     this._skyHistoryOpen = false;
+    this._skyHistoryEntries = [];
   }
 
   private async _onStatClick(e: CustomEvent): Promise<void> {
@@ -397,29 +354,13 @@ export class WeatherDashboardCard extends LitElement {
       // Discard if a newer request was made while we were fetching
       if (requestId !== this._statHistoryRequestId) return;
 
-      // Parse minimal response format:
-      // First entry is a full state object: { state, last_updated (ISO), ... }
-      // Subsequent entries are compact: { s: "25.3", lu: 1234567890.123 }
+      // Parse HA history (handles both full and compact minimal_response format)
       const entries = result?.[entityId];
       if (Array.isArray(entries)) {
         const points: HistoryDataPoint[] = [];
         for (const entry of entries) {
-          // Handle both full (first) and compact (rest) formats
-          const stateStr = entry.s ?? entry.state;
-          const val = parseFloat(stateStr);
-          if (!isFinite(val)) continue;
-
-          let time: number;
-          if (entry.lu) {
-            // Compact format: lu = unix seconds with decimal
-            time = entry.lu * 1000;
-          } else if (entry.last_updated) {
-            // Full format: ISO string
-            time = new Date(entry.last_updated).getTime();
-          } else {
-            continue;
-          }
-          if (time > 0) points.push({ time, value: val });
+          const parsed = parseNumericHistoryEntry(entry);
+          if (parsed) points.push({ time: parsed.time, value: parsed.value });
         }
         // Downsample if too many points (avoid huge SVG paths on low-end devices)
         this._statHistoryData = points.length > 500
@@ -530,13 +471,13 @@ export class WeatherDashboardCard extends LitElement {
     const useDynamicSky = hasLatLng;
 
     // Moon illumination (0-1) from moon phase name
-    const moonIllumination = this._getMoonIllumination(moonPhase);
+    const moonIllum = moonIllumination(moonPhase);
 
     // AQI
     let aqiValue: number | undefined;
     if (this._config.aqi_entity) {
       const aqiState = this._hass.states[this._config.aqi_entity];
-      if (aqiState && aqiState.state !== 'unavailable' && aqiState.state !== 'unknown') {
+      if (aqiState && isValidState(aqiState.state)) {
         const val = parseFloat(aqiState.state);
         if (isFinite(val)) aqiValue = val;
       }
@@ -567,7 +508,7 @@ export class WeatherDashboardCard extends LitElement {
         <!-- Main panels -->
         <div class="main-panels">
           <!-- Left: Weather Scene -->
-          <div class="panel">
+          <div class="panel scene-panel">
             <wdb-weather-scene
               .condition=${condition}
               .isNight=${isNight}
@@ -581,16 +522,19 @@ export class WeatherDashboardCard extends LitElement {
               .rainRateUnit=${this._getUnit('rain_rate') || 'mm/h'}
               .solarRadiation=${data.solar_radiation}
               .humidity=${data.humidity}
-              .moonIllumination=${moonIllumination}
+              .moonIllumination=${moonIllum}
               .aqiValue=${aqiValue}
               .moonPhase=${moonPhase}
               .useDynamicSky=${useDynamicSky}
-              .skyHistoryEntries=${this._skyHistoryEntries}
-              .skyHistoryLoading=${this._skyHistoryLoading}
-              .skyHistoryOpen=${this._skyHistoryOpen}
               @icon-click=${this._toggleSkyHistory}
-              @history-close=${this._closeSkyHistory}
             ></wdb-weather-scene>
+            <wdb-sky-history
+              .entries=${this._skyHistoryEntries}
+              .loading=${this._skyHistoryLoading}
+              .open=${this._skyHistoryOpen}
+              .tempUnit=${tempUnit}
+              @close=${this._closeSkyHistory}
+            ></wdb-sky-history>
           </div>
 
           <!-- Right: Wind Panel -->

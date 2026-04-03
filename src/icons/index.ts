@@ -1,4 +1,5 @@
 import { BEAUFORT_SCALE } from '../const';
+import { toKmh } from '../utils';
 
 // Stats icons
 import humidity from './stats/humidity.svg';
@@ -179,7 +180,7 @@ export function getStatIcon(
 
   if (role === 'wind_speed' && value !== undefined) {
     // Convert to km/h if imperial (mph), then look up Beaufort scale
-    const kmh = units === 'imperial' ? value * 1.60934 : value;
+    const kmh = units === 'imperial' ? toKmh(value, 'mph') : value;
     let beaufort = BEAUFORT_SCALE.length - 1;
     for (let i = 0; i < BEAUFORT_SCALE.length; i++) {
       if (kmh <= BEAUFORT_SCALE[i].max) { beaufort = i; break; }

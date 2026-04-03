@@ -75,6 +75,10 @@ export const dashboardStyles = css`
     flex-direction: column;
   }
 
+  .scene-panel {
+    position: relative;
+  }
+
   .panel-header {
     display: flex;
     justify-content: space-between;

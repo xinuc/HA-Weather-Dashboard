@@ -4,12 +4,10 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { weatherSceneStyles } from '../styles/weather-scene';
 import { getConditionIcon, getMoonIcon } from '../icons';
 import { WeatherCondition } from '../types';
-import { CONDITION_LABELS } from '../const';
+import { CONDITION_LABELS, STARS_VISIBLE_CONDITIONS, MOON_VISIBLE_CONDITIONS } from '../const';
 import { computeSkyGradient, skyGradientCSS, SkyInputs } from '../sky-color';
-import { SkyHistoryEntry } from '../sky-history-store';
 
 import './aqi-badge';
-import './sky-history';
 
 // Pre-generate star positions (fixed, not random on every render)
 const STARS = Array.from({ length: 40 }, () => ({
@@ -21,17 +19,6 @@ const STARS = Array.from({ length: 40 }, () => ({
   delay: Math.random() * 3,
 }));
 
-// Conditions where stars and moon are visible
-const STARS_VISIBLE_CONDITIONS: WeatherCondition[] = [
-  'clear-night',
-  'starry-night',
-  'partly-cloudy-night',
-];
-
-const MOON_VISIBLE_CONDITIONS: WeatherCondition[] = [
-  'clear-night',
-  'starry-night',
-];
 
 @customElement('wdb-weather-scene')
 export class WeatherScene extends LitElement {
@@ -52,9 +39,6 @@ export class WeatherScene extends LitElement {
   @property() moonPhase?: string;
   @property({ type: Boolean }) narrow = false;
   @property({ type: Boolean }) useDynamicSky = false;
-  @property({ type: Array }) skyHistoryEntries: readonly SkyHistoryEntry[] = [];
-  @property({ type: Boolean }) skyHistoryLoading = false;
-  @property({ type: Boolean }) skyHistoryOpen = false;
 
   static styles = weatherSceneStyles;
 
@@ -135,10 +119,6 @@ export class WeatherScene extends LitElement {
     this.dispatchEvent(new CustomEvent('icon-click', { bubbles: true, composed: true }));
   }
 
-  private _onHistoryClose(): void {
-    this.dispatchEvent(new CustomEvent('history-close', { bubbles: true, composed: true }));
-  }
-
   private _onIconKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -163,7 +143,7 @@ export class WeatherScene extends LitElement {
           ` : ''}
 
           <!-- Stars (night) -->
-          ${this._renderStars()}
+          ${showStars ? this._renderStars() : ''}
 
           <!-- Moon (night, clear skies) -->
           ${this._renderMoon()}
@@ -177,15 +157,6 @@ export class WeatherScene extends LitElement {
                @keydown=${this._onIconKeyDown}>
             ${unsafeHTML(conditionIcon)}
           </div>
-
-          <!-- Sky History Overlay -->
-          <wdb-sky-history
-            .entries=${this.skyHistoryEntries}
-            .loading=${this.skyHistoryLoading}
-            .open=${this.skyHistoryOpen}
-            .tempUnit=${this.tempUnit}
-            @close=${this._onHistoryClose}
-          ></wdb-sky-history>
 
           <!-- Info overlay -->
           <div class="weather-info">

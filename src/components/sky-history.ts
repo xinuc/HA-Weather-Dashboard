@@ -5,6 +5,8 @@ import { skyHistoryStyles } from '../styles/sky-history';
 import { skyGradientCSS } from '../sky-color';
 import { getConditionIcon, getMoonIcon } from '../icons';
 import { SkyHistoryEntry } from '../sky-history-store';
+import { formatHistoryTime } from '../utils';
+import { OverlayMixin } from './overlay-mixin';
 
 // Simplified stars for thumbnails — static, no animation
 const THUMB_STARS = [
@@ -17,80 +19,47 @@ const THUMB_STARS = [
 ];
 
 @customElement('wdb-sky-history')
-export class SkyHistory extends LitElement {
+export class SkyHistory extends OverlayMixin(LitElement) {
   @property({ type: Array }) entries: readonly SkyHistoryEntry[] = [];
   @property({ type: Boolean }) loading = false;
   @property({ type: Boolean }) open = false;
   @property() tempUnit = '°C';
 
-  @query('.history-panel') private _panel?: HTMLElement;
+  @query('.history-panel') declare _panel: HTMLElement | undefined;
   @query('.history-timeline') private _timeline?: HTMLElement;
   @query('.history-connector') private _connector?: HTMLElement;
 
   static styles = skyHistoryStyles;
 
-  connectedCallback(): void {
-    super.connectedCallback();
-    this._onDocClick = this._onDocClick.bind(this);
-  }
-
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    document.removeEventListener('click', this._onDocClick, true);
-  }
-
   updated(changed: Map<string, unknown>): void {
-    if (changed.has('open')) {
-      if (this.open) {
-        // Focus the panel so Escape key works
-        requestAnimationFrame(() => {
-          this._panel?.focus();
-        });
-        // Listen for clicks anywhere in the document to close on outside click
-        // Use capture phase + RAF to avoid the opening click from immediately closing
-        requestAnimationFrame(() => {
-          document.addEventListener('click', this._onDocClick, true);
-        });
-      } else {
-        document.removeEventListener('click', this._onDocClick, true);
+    super.updated(changed);
+
+    // Auto-scroll to latest entry when entries arrive while panel is open
+    if (changed.has('entries') && this.open && this.entries.length > 0) {
+      this._scrollToEnd();
+    }
+
+    // When panel opens, scroll after the slide-up transition finishes
+    if (changed.has('open') && this.open) {
+      if (this._panel) {
+        const onEnd = () => {
+          this._panel?.removeEventListener('transitionend', onEnd);
+          this._scrollToEnd();
+        };
+        this._panel.addEventListener('transitionend', onEnd);
       }
     }
-
-    // Auto-scroll to latest entry when panel opens or entries arrive
-    const shouldScroll =
-      (changed.has('open') && this.open) ||
-      (changed.has('entries') && this.open && this.entries.length > 0);
-
-    if (shouldScroll) {
-      setTimeout(() => {
-        if (this._timeline) {
-          this._timeline.scrollLeft = this._timeline.scrollWidth;
-        }
-        if (this._connector) {
-          this._connector.scrollLeft = this._connector.scrollWidth;
-        }
-      }, 350);
-    }
   }
 
-  private _close(): void {
-    this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
-  }
-
-  /** Close when clicking anywhere outside the history panel */
-  private _onDocClick(e: MouseEvent): void {
-    if (!this.open || !this._panel) return;
-    // Check if the click target is inside the panel (composedPath crosses shadow DOM)
-    const path = e.composedPath();
-    if (!path.includes(this._panel)) {
-      this._close();
-    }
-  }
-
-  private _onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
-      this._close();
-    }
+  private _scrollToEnd(): void {
+    requestAnimationFrame(() => {
+      if (this._timeline) {
+        this._timeline.scrollLeft = this._timeline.scrollWidth;
+      }
+      if (this._connector) {
+        this._connector.scrollLeft = this._connector.scrollWidth;
+      }
+    });
   }
 
   private _onTimelineScroll(): void {
@@ -105,15 +74,7 @@ export class SkyHistory extends LitElement {
   }
 
   private _formatTime(ts: number): string {
-    const d = new Date(ts);
-    const now = new Date();
-    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-
-    // Show "Yesterday" prefix if the entry is from a different calendar day
-    if (d.getDate() !== now.getDate() || d.getMonth() !== now.getMonth()) {
-      return `Y ${time}`;
-    }
-    return time;
+    return formatHistoryTime(ts, true);
   }
 
   private _renderThumb(entry: SkyHistoryEntry, isCurrent: boolean) {

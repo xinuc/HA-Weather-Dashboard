@@ -1,6 +1,8 @@
 import { WeatherCondition } from './types';
 import { SkyGradient, RGB, SkyInputs, computeSkyGradient, saveNightCloudCache, restoreNightCloudCache } from './sky-color';
-import { mapHaCondition } from './condition-engine';
+import { deriveCondition } from './condition-engine';
+import { moonIllumination, isValidState, parseHistoryEntry, parseNumericHistoryEntry, HAHistoryEntry } from './utils';
+import { STARS_VISIBLE_CONDITIONS, MOON_VISIBLE_CONDITIONS } from './const';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -14,23 +16,12 @@ export interface SkyHistoryEntry {
   moonPhase?: string;
 }
 
-/** Raw history entry from HA minimal_response (compact format) */
-interface HAHistoryEntry {
-  s?: string;
-  lu?: number;
-  state?: string;
-  last_updated?: string;
-}
-
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const MIN_INTERVAL_MS = 5 * 60 * 1000;       // 5 min between entries
 const MAX_GAP_MS = 30 * 60 * 1000;           // force entry every 30 min even if nothing changed
 const GRADIENT_THRESHOLD = 30;                // avg RGB distance for significant shift
 const MERGE_WINDOW_MS = 10 * 60 * 1000;      // merge if same condition returns within 10 min
-
-const STARS_CONDITIONS: WeatherCondition[] = ['clear-night', 'starry-night', 'partly-cloudy-night'];
-const MOON_CONDITIONS: WeatherCondition[] = ['clear-night', 'starry-night'];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -48,29 +39,6 @@ function cloneGradient(g: SkyGradient): SkyGradient {
     mid: [...g.mid] as RGB,
     horizon: [...g.horizon] as RGB,
   };
-}
-
-/** Parse a HA history entry (full or compact format) into { value, time } */
-function parseEntry(entry: HAHistoryEntry): { state: string; time: number } | null {
-  const stateStr = entry.s ?? entry.state;
-  if (stateStr === undefined || stateStr === null) return null;
-  const time = entry.lu
-    ? entry.lu * 1000               // compact: unix seconds → ms
-    : entry.last_updated
-      ? new Date(entry.last_updated).getTime()  // full: ISO → ms
-      : 0;
-  if (!time) return null;
-  return { state: stateStr, time };
-}
-
-/** Parse numeric from HA history entry, filtering unavailable/unknown */
-function parseNumericEntry(entry: HAHistoryEntry): { value: number; time: number } | null {
-  const parsed = parseEntry(entry);
-  if (!parsed) return null;
-  if (parsed.state === 'unavailable' || parsed.state === 'unknown') return null;
-  const val = parseFloat(parsed.state);
-  if (!isFinite(val)) return null;
-  return { value: val, time: parsed.time };
 }
 
 /**
@@ -92,25 +60,6 @@ function getValueAt<T extends { time: number }>(
     else hi = mid - 1;
   }
   return timeline[lo];
-}
-
-/**
- * Moon phase name to illumination (0-1).
- */
-function moonIllumination(phase: string | undefined): number {
-  if (!phase) return 0;
-  const p = phase.toLowerCase().replace(/[_\s]/g, '');
-  switch (p) {
-    case 'newmoon': return 0;
-    case 'waxingcrescent': return 0.15;
-    case 'firstquarter': return 0.5;
-    case 'waxinggibbous': return 0.75;
-    case 'fullmoon': return 1.0;
-    case 'waninggibbous': return 0.75;
-    case 'lastquarter': case 'thirdquarter': return 0.5;
-    case 'waningcrescent': return 0.15;
-    default: return 0;
-  }
 }
 
 /**
@@ -161,6 +110,8 @@ export async function reconstructSkyHistory(
   entities: SkyHistoryEntities,
   latitude: number,
   longitude: number,
+  speedUnit = 'km/h',
+  rainUnit = 'mm/h',
 ): Promise<SkyHistoryEntry[]> {
   const now = new Date();
   const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -211,8 +162,8 @@ export async function reconstructSkyHistory(
   // Parse weather entity
   if (entities.weatherEntity && result[entities.weatherEntity]) {
     for (const entry of result[entities.weatherEntity]) {
-      const parsed = parseEntry(entry);
-      if (parsed && parsed.state !== 'unavailable' && parsed.state !== 'unknown') {
+      const parsed = parseHistoryEntry(entry);
+      if (parsed && isValidState(parsed.state)) {
         weatherTimeline.push(parsed);
       }
     }
@@ -223,7 +174,7 @@ export async function reconstructSkyHistory(
     for (const entry of result[entities.sunEntity]) {
       // sun.sun state is 'above_horizon' / 'below_horizon' — not numeric
       // We compute elevation from lat/lng instead
-      const parsed = parseEntry(entry);
+      const parsed = parseHistoryEntry(entry);
       if (parsed) {
         sunTimeline.push({ value: 0, time: parsed.time }); // placeholder, will compute
       }
@@ -233,8 +184,8 @@ export async function reconstructSkyHistory(
   // Parse moon phase
   if (entities.moonEntity && result[entities.moonEntity]) {
     for (const entry of result[entities.moonEntity]) {
-      const parsed = parseEntry(entry);
-      if (parsed && parsed.state !== 'unavailable' && parsed.state !== 'unknown') {
+      const parsed = parseHistoryEntry(entry);
+      if (parsed && isValidState(parsed.state)) {
         moonTimeline.push(parsed);
       }
     }
@@ -245,7 +196,7 @@ export async function reconstructSkyHistory(
     if (!entityId || !result[entityId]) return [];
     const entries: NumericEntry[] = [];
     for (const entry of result[entityId]) {
-      const parsed = parseNumericEntry(entry);
+      const parsed = parseNumericHistoryEntry(entry);
       if (parsed) entries.push(parsed);
     }
     return entries;
@@ -297,54 +248,24 @@ export async function reconstructSkyHistory(
 
     // Compute sun elevation from lat/lng at this timestamp
     const elevation = sunElevationAt(ts, latitude, longitude);
-    // Use 0° threshold to match HA's sun.sun entity which transitions
-    // to 'below_horizon' at geometric sunset (elevation = 0°).
-    // Note: -6° is civil twilight — too late for icon transition.
     const isNight = elevation < 0;
 
-    // Derive weather condition
-    let condition: WeatherCondition;
-    if (weatherState) {
-      condition = mapHaCondition(weatherState.state, isNight);
-    } else {
-      // Fallback: use a generic condition from elevation
-      condition = isNight ? 'clear-night' : 'clear-day';
-    }
-
-    // Twilight / golden hour zone (-6° to 4°): show sunrise/sunset icon
-    // instead of clear-day/clear-night when conditions are clear or partly
-    // cloudy. At 4° the sun is ~15 min after rise / before set in the
-    // tropics — still low and orange. Rain/storm conditions are NOT
-    // overridden (rain override below will also take precedence).
-    if (elevation >= -6 && elevation <= 4) {
-      const isTwilightEligible = condition === 'clear-night' || condition === 'clear-day'
-        || condition === 'partly-cloudy-day' || condition === 'partly-cloudy-night';
-      if (isTwilightEligible) {
-        const hour = new Date(ts).getHours();
-        condition = hour < 12 ? 'sunrise' : 'sunset';
-      }
-    }
-
-    // Override condition when rain_rate sensor shows rain but weather entity
-    // doesn't reflect it (common with some integrations). The rain_rate sensor
-    // is more reliable for detecting actual precipitation.
-    const rainVal = rainState?.value ?? 0;
-    if (rainVal >= 0.1) {
-      const isRainCondition = ['rain', 'thunderstorms-rain',
-        'thunderstorms-day-rain', 'thunderstorms-night-rain',
-        'partly-cloudy-day-rain', 'partly-cloudy-night-rain'].includes(condition);
-      if (!isRainCondition) {
-        if (rainVal >= 20) {
-          condition = 'thunderstorms-rain';
-        } else if (rainVal >= 10) {
-          condition = isNight ? 'thunderstorms-night-rain' : 'thunderstorms-day-rain';
-        } else if (rainVal >= 2.5) {
-          condition = 'rain';
-        } else {
-          condition = isNight ? 'partly-cloudy-night-rain' : 'partly-cloudy-day-rain';
-        }
-      }
-    }
+    // Derive condition using the same unified logic as the live card
+    const condition = deriveCondition({
+      sensors: {
+        temperature: tempState?.value,
+        humidity: humidityState?.value,
+        solar_radiation: solarState?.value,
+        uv_index: uvState?.value,
+        rain_rate: rainState?.value,
+      },
+      isNight,
+      sunElevation: elevation,
+      speedUnit,
+      rainUnit,
+      haCondition: weatherState?.state,
+      timestamp: ts,
+    });
 
     // Compute moon illumination
     const moonPhase = moonState?.state;
@@ -362,9 +283,9 @@ export async function reconstructSkyHistory(
     };
     const skyGradient = computeSkyGradient(skyInputs, ts);
 
-    const showStars = STARS_CONDITIONS.includes(condition);
-    // Moon/stars only visible after civil twilight (elevation < -6°)
-    const showMoon = elevation < -6 && !!moonPhase && MOON_CONDITIONS.includes(condition);
+    const showStars = STARS_VISIBLE_CONDITIONS.includes(condition);
+    // Moon only visible after civil twilight (elevation < -6°)
+    const showMoon = elevation < -6 && !!moonPhase && MOON_VISIBLE_CONDITIONS.includes(condition);
 
     rawEntries.push({
       timestamp: ts,

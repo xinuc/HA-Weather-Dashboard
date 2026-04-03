@@ -26,21 +26,17 @@ export const statHistoryStyles = css`
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
   }
 
   .history-panel {
     position: relative;
     width: 90%;
     max-width: 520px;
-    background: linear-gradient(180deg, rgba(18, 30, 52, 0.97) 0%, rgba(14, 24, 44, 0.97) 100%);
+    background: linear-gradient(180deg, rgba(18, 30, 52, 0.98) 0%, rgba(14, 24, 44, 0.98) 100%);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 16px;
     padding: 20px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     transform: translateY(20px) scale(0.96);
     transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
