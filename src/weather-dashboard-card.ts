@@ -240,11 +240,14 @@ export class WeatherDashboardCard extends LitElement {
     return data;
   }
 
-  private _getCondition(isNight: boolean, elevation: number): WeatherCondition {
+  private _getCondition(isNight: boolean, elevation: number, aqiValue?: number, moonPhase?: string): WeatherCondition {
     const data = this._getSensorData();
     const haCondition = this._config?.weather_entity
       ? this._hass?.states[this._config.weather_entity]?.state
       : undefined;
+
+    const latitude = this._config.latitude ?? (this._hass as any).config?.latitude;
+    const longitude = this._config.longitude ?? (this._hass as any).config?.longitude;
 
     return deriveCondition({
       sensors: data,
@@ -253,6 +256,10 @@ export class WeatherDashboardCard extends LitElement {
       speedUnit: this._getUnit('wind_speed') || 'km/h',
       rainUnit: this._getUnit('rain_rate') || 'mm/h',
       haCondition,
+      aqiPm25: aqiValue,
+      moonPhase,
+      latitude,
+      longitude,
     });
   }
 
@@ -283,6 +290,7 @@ export class WeatherDashboardCard extends LitElement {
         solarRadiationEntity: this._entities.solar_radiation,
         uvIndexEntity: this._entities.uv_index,
         rainRateEntity: this._entities.rain_rate,
+        aqiEntity: this._config.aqi_entity,
       };
 
       // Get lat/lng from config or HA
@@ -457,9 +465,20 @@ export class WeatherDashboardCard extends LitElement {
     const data = this._getSensorData();
     const isNight = getIsNight(this._hass);
     const elevation = getSunElevation(this._hass) ?? (isNight ? -10 : 30);
-    const condition = this._getCondition(isNight, elevation);
     const moonPhase = getMoonPhase(this._hass);
     const location = this._getLocationName();
+
+    // AQI value (read early — needed for both condition engine and scene badge)
+    let aqiValue: number | undefined;
+    if (this._config.aqi_entity) {
+      const aqiState = this._hass.states[this._config.aqi_entity];
+      if (aqiState && isValidState(aqiState.state)) {
+        const val = parseFloat(aqiState.state);
+        if (isFinite(val)) aqiValue = val;
+      }
+    }
+
+    const condition = this._getCondition(isNight, elevation, aqiValue, moonPhase);
 
     // Units from actual entities
     const tempUnit = this._getUnit('temperature') || '°C';
@@ -472,16 +491,6 @@ export class WeatherDashboardCard extends LitElement {
 
     // Moon illumination (0-1) from moon phase name
     const moonIllum = moonIllumination(moonPhase);
-
-    // AQI
-    let aqiValue: number | undefined;
-    if (this._config.aqi_entity) {
-      const aqiState = this._hass.states[this._config.aqi_entity];
-      if (aqiState && isValidState(aqiState.state)) {
-        const val = parseFloat(aqiState.state);
-        if (isFinite(val)) aqiValue = val;
-      }
-    }
 
     // Wind
     const windSpeed = data.wind_speed ?? 0;

@@ -91,6 +91,10 @@ export interface ConditionInput {
   rainUnit?: string;     // default: 'mm/h'
   haCondition?: string;  // raw HA weather entity state (e.g. 'sunny', 'rainy')
   timestamp?: number;    // for sunrise/sunset hour determination; defaults to now
+  aqiPm25?: number;      // PM2.5 value for smoke/haze overlay
+  moonPhase?: string;    // moon phase name for moonrise/moonset
+  latitude?: number;     // for moon elevation estimate
+  longitude?: number;    // for moon elevation estimate
 }
 
 /**
@@ -110,8 +114,25 @@ export interface ConditionInput {
  *   5. Wind           (sensor wind_speed, or HA fallback)
  *   6. Cloud cover    (solar radiation → humidity → HA fallback)
  *   7. Twilight       (sunrise/sunset override for -6° to 4° elevation)
+ *   8. Air quality    (smoke/haze overlay based on PM2.5)
+ *   9. Moonrise/set   (moon near horizon during clear night)
  */
 export function deriveCondition(input: ConditionInput): WeatherCondition {
+  const base = deriveBaseCondition(input);
+
+  // Post-processors only affect clear/partly-cloudy/starry/twilight conditions.
+  // Rain, storms, fog, wind are never overridden.
+  return applyMoonHorizon(
+    applyAirQuality(base, input.aqiPm25),
+    input.moonPhase, input.sunElevation, input.timestamp, input.latitude, input.longitude,
+  );
+}
+
+/**
+ * Core condition derivation — produces a base condition from sensor data,
+ * HA entity state, and twilight override. Does NOT apply AQI or moon overlays.
+ */
+function deriveBaseCondition(input: ConditionInput): WeatherCondition {
   const { sensors, isNight, sunElevation, haCondition, timestamp } = input;
   const speedUnit = input.speedUnit || 'km/h';
   const rainUnit = input.rainUnit || 'mm/h';
@@ -139,8 +160,6 @@ export function deriveCondition(input: ConditionInput): WeatherCondition {
   }
 
   // ── Priority 3: HA-exclusive conditions ──────────────────────────────
-  // Trust HA for conditions we can't detect with sensors (lightning, hail).
-  // Only when sensor rain_rate doesn't indicate heavy rain (already handled above).
   if (haBase) {
     const haExclusive = haBase === 'thunderstorms-day' || haBase === 'thunderstorms-night'
       || haBase === 'thunderstorms-rain' || haBase === 'thunderstorms-day-rain'
@@ -155,9 +174,8 @@ export function deriveCondition(input: ConditionInput): WeatherCondition {
     return 'rain';
   }
 
-  // ── Priority 5: Light rain (sensor, >= 0.1 mm/h) ────────────────────
-  if (rainMmh >= 0.1) {
-    // Check for sun shower: light rain with significant solar radiation
+  // ── Priority 5a: Light rain 1.0–2.5 mm/h ─────────────────────────────
+  if (rainMmh >= 1.0) {
     if (sunElevation > 5 && solar_radiation !== undefined) {
       const expected = clearSkyRadiation(sunElevation);
       if (expected > 20) {
@@ -168,6 +186,11 @@ export function deriveCondition(input: ConditionInput): WeatherCondition {
       }
     }
     return isNight ? 'partly-cloudy-night-rain' : 'partly-cloudy-day-rain';
+  }
+
+  // ── Priority 5b: Drizzle 0.1–1.0 mm/h ──────────────────────────────
+  if (rainMmh >= 0.1) {
+    return isNight ? 'partly-cloudy-night-drizzle' : 'partly-cloudy-day-drizzle';
   }
 
   // ── Priority 6: HA rain fallback (no rain sensor) ────────────────────
@@ -222,7 +245,6 @@ export function deriveCondition(input: ConditionInput): WeatherCondition {
         if (humidity >= 90) return applyTwilight('cloudy', sunElevation, timestamp);
         if (humidity >= 80) return applyTwilight('partly-cloudy-day', sunElevation, timestamp);
       }
-      // HA fallback for daytime cloud cover
       if (haBase === 'cloudy' || haBase === 'overcast-day' || haBase === 'partly-cloudy-day') {
         return applyTwilight(haBase, sunElevation, timestamp);
       }
@@ -231,15 +253,12 @@ export function deriveCondition(input: ConditionInput): WeatherCondition {
   }
 
   // ── Priority 11: Cloud cover (night) - humidity ──────────────────────
-  // Tropical thresholds: 70-82% humidity is NOT clear in the tropics.
-  // Only truly clear when humidity < 70% (rare in tropical maritime climate).
   if (isNight) {
     if (humidity !== undefined) {
       if (humidity >= 92) return applyTwilight('overcast-night', sunElevation, timestamp);
       if (humidity >= 70) return applyTwilight('partly-cloudy-night', sunElevation, timestamp);
       if (humidity < 70) return applyTwilight('starry-night', sunElevation, timestamp);
     }
-    // HA fallback for nighttime cloud cover
     if (haBase === 'overcast-night' || haBase === 'partly-cloudy-night' || haBase === 'cloudy') {
       const mapped = haBase === 'cloudy' ? 'overcast-night' as WeatherCondition : haBase;
       return applyTwilight(mapped, sunElevation, timestamp);
@@ -277,6 +296,122 @@ function applyTwilight(
 
   const hour = timestamp ? new Date(timestamp).getHours() : new Date().getHours();
   return hour < 12 ? 'sunrise' : 'sunset';
+}
+
+/**
+ * Air quality overlay — smoke/haze when PM2.5 is elevated.
+ *
+ * Only transforms clear/partly-cloudy conditions (not rain, storms, fog, etc.).
+ * Smoke (PM2.5 > 75) takes priority over haze (PM2.5 35–75).
+ * During twilight (sunrise/sunset), AQI overlay is suppressed — the golden
+ * hour colors already imply atmospheric scattering.
+ */
+function applyAirQuality(
+  condition: WeatherCondition,
+  aqiPm25?: number,
+): WeatherCondition {
+  if (aqiPm25 === undefined) return condition;
+
+  // Smoke: PM2.5 > 75 (Unhealthy+)
+  if (aqiPm25 > 75) {
+    switch (condition) {
+      case 'clear-day':
+      case 'partly-cloudy-day':
+        return 'partly-cloudy-day-smoke';
+      case 'clear-night':
+      case 'starry-night':
+      case 'partly-cloudy-night':
+        return 'partly-cloudy-night-smoke';
+      default:
+        return condition;
+    }
+  }
+
+  // Haze: PM2.5 35–75 (Moderate to Unhealthy)
+  if (aqiPm25 > 35) {
+    switch (condition) {
+      case 'clear-day':
+        return 'haze-day';
+      case 'clear-night':
+      case 'starry-night':
+        return 'haze-night';
+      case 'partly-cloudy-day':
+        return 'partly-cloudy-day-haze';
+      case 'partly-cloudy-night':
+        return 'partly-cloudy-night-haze';
+      default:
+        return condition;
+    }
+  }
+
+  return condition;
+}
+
+/**
+ * Moonrise / moonset overlay for clear nights.
+ *
+ * Uses a simplified moon transit model: the moon's hour angle relative
+ * to its meridian transit determines whether it's rising, setting, or
+ * high in the sky. Only applies when the sky is clear/starry and the
+ * sun is well below the horizon (elevation < -6°).
+ *
+ * The moon transit time shifts ~50 min later each day. We estimate it
+ * from the moon phase: new moon transits at solar noon, full moon at
+ * solar midnight, and intermediate phases scale linearly.
+ */
+function applyMoonHorizon(
+  condition: WeatherCondition,
+  moonPhase?: string,
+  sunElevation?: number,
+  timestamp?: number,
+  latitude?: number,
+  longitude?: number,
+): WeatherCondition {
+  if (!moonPhase || sunElevation === undefined || sunElevation >= -6) return condition;
+  if (latitude === undefined || longitude === undefined) return condition;
+
+  // Only apply to clear night skies
+  const eligible = condition === 'clear-night' || condition === 'starry-night';
+  if (!eligible) return condition;
+
+  // Estimate moon's hour angle from phase
+  // Phase offset: hours after solar noon for moon's meridian transit
+  const phaseOffsets: Record<string, number> = {
+    'new_moon': 0,          // transits at ~noon (not visible at night)
+    'waxing_crescent': 3,   // transits ~3pm, sets early evening
+    'first_quarter': 6,     // transits ~6pm, sets ~midnight
+    'waxing_gibbous': 9,    // transits ~9pm, sets ~3am
+    'full_moon': 12,        // transits ~midnight
+    'waning_gibbous': 15,   // transits ~3am, rises ~9pm
+    'last_quarter': 18,     // transits ~6am, rises ~midnight
+    'waning_crescent': 21,  // transits ~9am, rises ~3am
+  };
+
+  const transitOffset = phaseOffsets[moonPhase];
+  if (transitOffset === undefined) return condition;
+
+  // New moon never visible at night — skip
+  if (moonPhase === 'new_moon') return condition;
+
+  const now = timestamp ? new Date(timestamp) : new Date();
+  const hourUTC = now.getUTCHours() + now.getUTCMinutes() / 60;
+  const solarNoonUTC = 12 - longitude / 15;
+  const moonTransitUTC = (solarNoonUTC + transitOffset) % 24;
+
+  // Hour angle: how far the moon is from its highest point
+  // Negative = rising (east), positive = setting (west)
+  let hourAngle = hourUTC - moonTransitUTC;
+  if (hourAngle > 12) hourAngle -= 24;
+  if (hourAngle < -12) hourAngle += 24;
+
+  // Moon is near the horizon when |hourAngle| is ~5-7 hours from transit
+  // (approximate for most latitudes)
+  const absHA = Math.abs(hourAngle);
+  if (absHA >= 5 && absHA <= 7) {
+    return hourAngle < 0 ? 'moonrise' : 'moonset';
+  }
+
+  return condition;
 }
 
 // ── HA entity helpers ──────────────────────────────────────────────────

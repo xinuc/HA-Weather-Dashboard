@@ -48,6 +48,9 @@ export const CONDITION_LABELS: Record<WeatherCondition, string> = {
   'fog-day': 'Fog',
   'fog-night': 'Fog',
   'rain': 'Rain',
+  'drizzle': 'Drizzle',
+  'partly-cloudy-day-drizzle': 'Drizzle',
+  'partly-cloudy-night-drizzle': 'Drizzle',
   'partly-cloudy-day-rain': 'Light Rain',
   'partly-cloudy-night-rain': 'Light Rain',
   'thunderstorms-day': 'Thunderstorm',
@@ -55,17 +58,27 @@ export const CONDITION_LABELS: Record<WeatherCondition, string> = {
   'thunderstorms-day-rain': 'Thunderstorm',
   'thunderstorms-night-rain': 'Thunderstorm',
   'thunderstorms-rain': 'Heavy Storm',
+  'haze-day': 'Haze',
+  'haze-night': 'Haze',
+  'partly-cloudy-day-haze': 'Hazy',
+  'partly-cloudy-night-haze': 'Hazy',
+  'partly-cloudy-day-smoke': 'Smoky',
+  'partly-cloudy-night-smoke': 'Smoky',
+  'moonrise': 'Moonrise',
+  'moonset': 'Moonset',
   'wind': 'Windy',
 };
 
 /** Conditions where stars are visible in the sky */
 export const STARS_VISIBLE_CONDITIONS: WeatherCondition[] = [
   'clear-night', 'starry-night', 'partly-cloudy-night',
+  'moonrise', 'moonset',
 ];
 
 /** Conditions where the moon is visible (clear skies only) */
 export const MOON_VISIBLE_CONDITIONS: WeatherCondition[] = [
   'clear-night', 'starry-night',
+  'moonrise', 'moonset',
 ];
 
 export const COMPASS_POINTS = [

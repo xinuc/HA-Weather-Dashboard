@@ -64,6 +64,9 @@ export type WeatherCondition =
   | 'fog-day'
   | 'fog-night'
   | 'rain'
+  | 'drizzle'
+  | 'partly-cloudy-day-drizzle'
+  | 'partly-cloudy-night-drizzle'
   | 'partly-cloudy-day-rain'
   | 'partly-cloudy-night-rain'
   | 'thunderstorms-day'
@@ -71,6 +74,14 @@ export type WeatherCondition =
   | 'thunderstorms-day-rain'
   | 'thunderstorms-night-rain'
   | 'thunderstorms-rain'
+  | 'haze-day'
+  | 'haze-night'
+  | 'partly-cloudy-day-haze'
+  | 'partly-cloudy-night-haze'
+  | 'partly-cloudy-day-smoke'
+  | 'partly-cloudy-night-smoke'
+  | 'moonrise'
+  | 'moonset'
   | 'wind';
 
 export interface StatDefinition {

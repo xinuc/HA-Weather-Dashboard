@@ -66,6 +66,17 @@ import thunderstormsDayRain from './conditions/thunderstorms-day-rain.svg';
 import thunderstormsNight from './conditions/thunderstorms-night.svg';
 import thunderstormsNightRain from './conditions/thunderstorms-night-rain.svg';
 import thunderstormsRain from './conditions/thunderstorms-rain.svg';
+import drizzle from './conditions/drizzle.svg';
+import partlyCloudyDayDrizzle from './conditions/partly-cloudy-day-drizzle.svg';
+import partlyCloudyNightDrizzle from './conditions/partly-cloudy-night-drizzle.svg';
+import hazeDay from './conditions/haze-day.svg';
+import hazeNight from './conditions/haze-night.svg';
+import partlyCloudyDayHaze from './conditions/partly-cloudy-day-haze.svg';
+import partlyCloudyNightHaze from './conditions/partly-cloudy-night-haze.svg';
+import partlyCloudyDaySmoke from './conditions/partly-cloudy-day-smoke.svg';
+import partlyCloudyNightSmoke from './conditions/partly-cloudy-night-smoke.svg';
+import moonrise from './conditions/moonrise.svg';
+import moonset from './conditions/moonset.svg';
 import wind from './conditions/wind.svg';
 
 // Moon icons
@@ -147,6 +158,17 @@ const CONDITION_ICONS: Record<string, string> = {
   'thunderstorms-night': thunderstormsNight,
   'thunderstorms-night-rain': thunderstormsNightRain,
   'thunderstorms-rain': thunderstormsRain,
+  'drizzle': drizzle,
+  'partly-cloudy-day-drizzle': partlyCloudyDayDrizzle,
+  'partly-cloudy-night-drizzle': partlyCloudyNightDrizzle,
+  'haze-day': hazeDay,
+  'haze-night': hazeNight,
+  'partly-cloudy-day-haze': partlyCloudyDayHaze,
+  'partly-cloudy-night-haze': partlyCloudyNightHaze,
+  'partly-cloudy-day-smoke': partlyCloudyDaySmoke,
+  'partly-cloudy-night-smoke': partlyCloudyNightSmoke,
+  'moonrise': moonrise,
+  'moonset': moonset,
   'wind': wind,
 };
 

@@ -97,6 +97,7 @@ export interface SkyHistoryEntities {
   solarRadiationEntity?: string;
   uvIndexEntity?: string;
   rainRateEntity?: string;
+  aqiEntity?: string;          // PM2.5 entity for smoke/haze conditions
 }
 
 /**
@@ -126,6 +127,7 @@ export async function reconstructSkyHistory(
   if (entities.solarRadiationEntity) entityIds.push(entities.solarRadiationEntity);
   if (entities.uvIndexEntity) entityIds.push(entities.uvIndexEntity);
   if (entities.rainRateEntity) entityIds.push(entities.rainRateEntity);
+  if (entities.aqiEntity) entityIds.push(entities.aqiEntity);
 
   if (entityIds.length === 0) return [];
 
@@ -158,6 +160,7 @@ export async function reconstructSkyHistory(
   const solarTimeline: NumericEntry[] = [];
   const uvTimeline: NumericEntry[] = [];
   const rainTimeline: NumericEntry[] = [];
+  const aqiTimeline: NumericEntry[] = [];
 
   // Parse weather entity
   if (entities.weatherEntity && result[entities.weatherEntity]) {
@@ -207,11 +210,12 @@ export async function reconstructSkyHistory(
   solarTimeline.push(...parseNumericTimeline(entities.solarRadiationEntity));
   uvTimeline.push(...parseNumericTimeline(entities.uvIndexEntity));
   rainTimeline.push(...parseNumericTimeline(entities.rainRateEntity));
+  aqiTimeline.push(...parseNumericTimeline(entities.aqiEntity));
 
   // Collect all unique timestamps where ANY entity changed
   const allTimestamps = new Set<number>();
   for (const tl of [weatherTimeline, sunTimeline, moonTimeline,
-    tempTimeline, humidityTimeline, solarTimeline, uvTimeline, rainTimeline]) {
+    tempTimeline, humidityTimeline, solarTimeline, uvTimeline, rainTimeline, aqiTimeline]) {
     for (const entry of tl) {
       allTimestamps.add(entry.time);
     }
@@ -245,6 +249,7 @@ export async function reconstructSkyHistory(
     const solarState = getValueAt(solarTimeline, ts);
     const uvState = getValueAt(uvTimeline, ts);
     const rainState = getValueAt(rainTimeline, ts);
+    const aqiState = getValueAt(aqiTimeline, ts);
 
     // Compute sun elevation from lat/lng at this timestamp
     const elevation = sunElevationAt(ts, latitude, longitude);
@@ -265,6 +270,10 @@ export async function reconstructSkyHistory(
       rainUnit,
       haCondition: weatherState?.state,
       timestamp: ts,
+      aqiPm25: aqiState?.value,
+      moonPhase: moonState?.state,
+      latitude,
+      longitude,
     });
 
     // Compute moon illumination

@@ -76,7 +76,9 @@ export class WeatherScene extends LitElement {
       if (this.condition.startsWith('thunderstorms')) return 'sky-stormy';
       if (this.condition === 'rain') return 'sky-night-overcast';
       if (this.condition === 'overcast-night' || this.condition === 'fog-night') return 'sky-night-overcast';
-      if (this.condition === 'partly-cloudy-night-rain') return 'sky-night-overcast';
+      if (this.condition === 'partly-cloudy-night-rain' || this.condition === 'partly-cloudy-night-drizzle') return 'sky-night-overcast';
+      if (this.condition === 'partly-cloudy-night-smoke') return 'sky-night-overcast';
+      if (this.condition === 'haze-night' || this.condition === 'partly-cloudy-night-haze') return 'sky-night';
       return 'sky-night';
     }
 
@@ -84,6 +86,8 @@ export class WeatherScene extends LitElement {
     if (this.condition.startsWith('thunderstorms')) return 'sky-stormy';
     if (this.condition === 'cloudy' || this.condition === 'overcast-day' || this.condition === 'fog-day') return 'sky-overcast';
     if (this.condition === 'rain') return 'sky-overcast';
+    if (this.condition === 'partly-cloudy-day-smoke') return 'sky-overcast';
+    if (this.condition === 'haze-day' || this.condition === 'partly-cloudy-day-haze') return 'sky-day';
     return 'sky-day';
   }
 
