@@ -25,6 +25,7 @@ interface HAHistoryEntry {
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const MIN_INTERVAL_MS = 5 * 60 * 1000;       // 5 min between entries
+const MAX_GAP_MS = 30 * 60 * 1000;           // force entry every 30 min even if nothing changed
 const GRADIENT_THRESHOLD = 30;                // avg RGB distance for significant shift
 const MERGE_WINDOW_MS = 10 * 60 * 1000;      // merge if same condition returns within 10 min
 
@@ -265,6 +266,15 @@ export async function reconstructSkyHistory(
     }
   }
 
+  // Inject periodic sample timestamps every 30 minutes across the full 24h window.
+  // This ensures the timeline has entries even during completely stable periods
+  // where no entity changed at all (e.g., clear midday for 6 hours straight).
+  const startMs = start.getTime();
+  const endMs = now.getTime();
+  for (let t = startMs; t <= endMs; t += MAX_GAP_MS) {
+    allTimestamps.add(t);
+  }
+
   // Sort timestamps chronologically
   const sortedTimes = Array.from(allTimestamps).sort((a, b) => a - b);
   if (sortedTimes.length === 0) return [];
@@ -296,6 +306,27 @@ export async function reconstructSkyHistory(
     } else {
       // Fallback: use a generic condition from elevation
       condition = isNight ? 'clear-night' : 'clear-day';
+    }
+
+    // Override condition when rain_rate sensor shows rain but weather entity
+    // doesn't reflect it (common with some integrations). The rain_rate sensor
+    // is more reliable for detecting actual precipitation.
+    const rainVal = rainState?.value ?? 0;
+    if (rainVal >= 0.1) {
+      const isRainCondition = ['rain', 'thunderstorms-rain',
+        'thunderstorms-day-rain', 'thunderstorms-night-rain',
+        'partly-cloudy-day-rain', 'partly-cloudy-night-rain'].includes(condition);
+      if (!isRainCondition) {
+        if (rainVal >= 20) {
+          condition = 'thunderstorms-rain';
+        } else if (rainVal >= 10) {
+          condition = isNight ? 'thunderstorms-night-rain' : 'thunderstorms-day-rain';
+        } else if (rainVal >= 2.5) {
+          condition = 'rain';
+        } else {
+          condition = isNight ? 'partly-cloudy-night-rain' : 'partly-cloudy-day-rain';
+        }
+      }
     }
 
     // Compute moon illumination
@@ -353,6 +384,8 @@ function filterSignificantEntries(raw: SkyHistoryEntry[]): SkyHistoryEntry[] {
     // Minimum interval
     if (entry.timestamp - lastTime < MIN_INTERVAL_MS) continue;
 
+    const gap = entry.timestamp - lastTime;
+
     // Condition changed?
     if (entry.condition !== lastCondition) {
       // Check for merge (flapping suppression)
@@ -371,6 +404,15 @@ function filterSignificantEntries(raw: SkyHistoryEntry[]): SkyHistoryEntry[] {
     const avgDelta = (dZ + dM + dH) / 3;
 
     if (avgDelta > GRADIENT_THRESHOLD) {
+      result.push(entry);
+      lastCondition = entry.condition;
+      lastTime = entry.timestamp;
+      continue;
+    }
+
+    // Max gap: force an entry every 30 minutes even during stable conditions
+    // so the timeline covers the full 24h period without large gaps
+    if (gap >= MAX_GAP_MS) {
       result.push(entry);
       lastCondition = entry.condition;
       lastTime = entry.timestamp;
