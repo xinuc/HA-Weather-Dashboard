@@ -53,6 +53,8 @@ export interface SensorData {
 export type WeatherCondition =
   | 'clear-day'
   | 'clear-night'
+  | 'sunrise'
+  | 'sunset'
   | 'starry-night'
   | 'partly-cloudy-day'
   | 'partly-cloudy-night'

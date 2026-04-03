@@ -37,6 +37,8 @@ export const BEAUFORT_SCALE: Array<{ max: number; label: string }> = [
 export const CONDITION_LABELS: Record<WeatherCondition, string> = {
   'clear-day': 'Clear',
   'clear-night': 'Clear Night',
+  'sunrise': 'Sunrise',
+  'sunset': 'Sunset',
   'starry-night': 'Starry Night',
   'partly-cloudy-day': 'Partly Cloudy',
   'partly-cloudy-night': 'Partly Cloudy',

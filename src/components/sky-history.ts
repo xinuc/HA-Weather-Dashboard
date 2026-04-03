@@ -29,12 +29,31 @@ export class SkyHistory extends LitElement {
 
   static styles = skyHistoryStyles;
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    this._onDocClick = this._onDocClick.bind(this);
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    document.removeEventListener('click', this._onDocClick, true);
+  }
+
   updated(changed: Map<string, unknown>): void {
-    // Focus the panel so Escape key works
-    if (changed.has('open') && this.open) {
-      requestAnimationFrame(() => {
-        this._panel?.focus();
-      });
+    if (changed.has('open')) {
+      if (this.open) {
+        // Focus the panel so Escape key works
+        requestAnimationFrame(() => {
+          this._panel?.focus();
+        });
+        // Listen for clicks anywhere in the document to close on outside click
+        // Use capture phase + RAF to avoid the opening click from immediately closing
+        requestAnimationFrame(() => {
+          document.addEventListener('click', this._onDocClick, true);
+        });
+      } else {
+        document.removeEventListener('click', this._onDocClick, true);
+      }
     }
 
     // Auto-scroll to latest entry when panel opens or entries arrive
@@ -58,6 +77,16 @@ export class SkyHistory extends LitElement {
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
   }
 
+  /** Close when clicking anywhere outside the history panel */
+  private _onDocClick(e: MouseEvent): void {
+    if (!this.open || !this._panel) return;
+    // Check if the click target is inside the panel (composedPath crosses shadow DOM)
+    const path = e.composedPath();
+    if (!path.includes(this._panel)) {
+      this._close();
+    }
+  }
+
   private _onKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
       this._close();
@@ -77,7 +106,14 @@ export class SkyHistory extends LitElement {
 
   private _formatTime(ts: number): string {
     const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const now = new Date();
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    // Show "Yesterday" prefix if the entry is from a different calendar day
+    if (d.getDate() !== now.getDate() || d.getMonth() !== now.getMonth()) {
+      return `Y ${time}`;
+    }
+    return time;
   }
 
   private _renderThumb(entry: SkyHistoryEntry, isCurrent: boolean) {

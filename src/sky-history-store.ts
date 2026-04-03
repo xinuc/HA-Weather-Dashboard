@@ -297,7 +297,10 @@ export async function reconstructSkyHistory(
 
     // Compute sun elevation from lat/lng at this timestamp
     const elevation = sunElevationAt(ts, latitude, longitude);
-    const isNight = elevation < -6;
+    // Use 0° threshold to match HA's sun.sun entity which transitions
+    // to 'below_horizon' at geometric sunset (elevation = 0°).
+    // Note: -6° is civil twilight — too late for icon transition.
+    const isNight = elevation < 0;
 
     // Derive weather condition
     let condition: WeatherCondition;
@@ -306,6 +309,20 @@ export async function reconstructSkyHistory(
     } else {
       // Fallback: use a generic condition from elevation
       condition = isNight ? 'clear-night' : 'clear-day';
+    }
+
+    // Twilight / golden hour zone (-6° to 4°): show sunrise/sunset icon
+    // instead of clear-day/clear-night when conditions are clear or partly
+    // cloudy. At 4° the sun is ~15 min after rise / before set in the
+    // tropics — still low and orange. Rain/storm conditions are NOT
+    // overridden (rain override below will also take precedence).
+    if (elevation >= -6 && elevation <= 4) {
+      const isTwilightEligible = condition === 'clear-night' || condition === 'clear-day'
+        || condition === 'partly-cloudy-day' || condition === 'partly-cloudy-night';
+      if (isTwilightEligible) {
+        const hour = new Date(ts).getHours();
+        condition = hour < 12 ? 'sunrise' : 'sunset';
+      }
     }
 
     // Override condition when rain_rate sensor shows rain but weather entity
@@ -346,6 +363,7 @@ export async function reconstructSkyHistory(
     const skyGradient = computeSkyGradient(skyInputs, ts);
 
     const showStars = STARS_CONDITIONS.includes(condition);
+    // Moon/stars only visible after civil twilight (elevation < -6°)
     const showMoon = elevation < -6 && !!moonPhase && MOON_CONDITIONS.includes(condition);
 
     rawEntries.push({

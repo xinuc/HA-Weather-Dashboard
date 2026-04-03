@@ -249,7 +249,7 @@ export class WeatherDashboardCard extends LitElement {
     if (this._config?.weather_entity) {
       const weather = this._hass?.states[this._config.weather_entity];
       if (weather?.state) {
-        return mapHaCondition(weather.state, isNight);
+        return this._applyTwilight(mapHaCondition(weather.state, isNight), elevation);
       }
     }
 
@@ -258,13 +258,29 @@ export class WeatherDashboardCard extends LitElement {
     const speedUnit = this._getUnit('wind_speed') || 'km/h';
     const rainUnit = this._getUnit('rain_rate') || 'mm/h';
 
-    return deriveCondition({
+    const condition = deriveCondition({
       sensors: data,
       isNight,
       sunElevation: elevation,
       speedUnit,
       rainUnit,
     });
+
+    return this._applyTwilight(condition, elevation);
+  }
+
+  /**
+   * During twilight / golden hour (-6° to 4°), show sunrise/sunset icon
+   * instead of clear/partly-cloudy when conditions are non-precipitation.
+   * At 4° the sun is ~15 min after rise / before set in the tropics.
+   */
+  private _applyTwilight(condition: WeatherCondition, elevation: number): WeatherCondition {
+    if (elevation < -6 || elevation > 4) return condition;
+    const eligible = condition === 'clear-night' || condition === 'clear-day'
+      || condition === 'partly-cloudy-day' || condition === 'partly-cloudy-night';
+    if (!eligible) return condition;
+    const hour = new Date().getHours();
+    return hour < 12 ? 'sunrise' : 'sunset';
   }
 
   /**

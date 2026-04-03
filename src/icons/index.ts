@@ -57,6 +57,8 @@ import partlyCloudyNight from './conditions/partly-cloudy-night.svg';
 import partlyCloudyNightRain from './conditions/partly-cloudy-night-rain.svg';
 import rain from './conditions/rain.svg';
 import starryNight from './conditions/starry-night.svg';
+import sunrise from './conditions/sunrise.svg';
+import sunset from './conditions/sunset.svg';
 import thunderstorms from './conditions/thunderstorms.svg';
 import thunderstormsDay from './conditions/thunderstorms-day.svg';
 import thunderstormsDayRain from './conditions/thunderstorms-day-rain.svg';
@@ -136,6 +138,8 @@ const CONDITION_ICONS: Record<string, string> = {
   'partly-cloudy-night-rain': partlyCloudyNightRain,
   'rain': rain,
   'starry-night': starryNight,
+  'sunrise': sunrise,
+  'sunset': sunset,
   'thunderstorms': thunderstorms,
   'thunderstorms-day': thunderstormsDay,
   'thunderstorms-day-rain': thunderstormsDayRain,
