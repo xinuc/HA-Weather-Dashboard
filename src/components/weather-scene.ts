@@ -6,8 +6,10 @@ import { getConditionIcon, getMoonIcon } from '../icons';
 import { WeatherCondition } from '../types';
 import { CONDITION_LABELS } from '../const';
 import { computeSkyGradient, skyGradientCSS, SkyInputs } from '../sky-color';
+import { SkyHistoryEntry } from '../sky-history-store';
 
 import './aqi-badge';
+import './sky-history';
 
 // Pre-generate star positions (fixed, not random on every render)
 const STARS = Array.from({ length: 40 }, () => ({
@@ -50,6 +52,8 @@ export class WeatherScene extends LitElement {
   @property() moonPhase?: string;
   @property({ type: Boolean }) narrow = false;
   @property({ type: Boolean }) useDynamicSky = false;
+  @property({ type: Array }) skyHistoryEntries: readonly SkyHistoryEntry[] = [];
+  @property({ type: Boolean }) skyHistoryOpen = false;
 
   static styles = weatherSceneStyles;
 
@@ -126,6 +130,21 @@ export class WeatherScene extends LitElement {
     `;
   }
 
+  private _onIconClick(): void {
+    this.dispatchEvent(new CustomEvent('icon-click', { bubbles: true, composed: true }));
+  }
+
+  private _onHistoryClose(): void {
+    this.dispatchEvent(new CustomEvent('history-close', { bubbles: true, composed: true }));
+  }
+
+  private _onIconKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this._onIconClick();
+    }
+  }
+
   render() {
     const skyClass = this._getSkyClass();
     const skyStyle = this._getSkyStyle();
@@ -148,10 +167,23 @@ export class WeatherScene extends LitElement {
           <!-- Moon (night, clear skies) -->
           ${this._renderMoon()}
 
-          <!-- Weather icon -->
-          <div class="weather-icon-container">
+          <!-- Weather icon (clickable — opens sky history) -->
+          <div class="weather-icon-container"
+               role="button"
+               tabindex="0"
+               aria-label="Show sky condition history"
+               @click=${this._onIconClick}
+               @keydown=${this._onIconKeyDown}>
             ${unsafeHTML(conditionIcon)}
           </div>
+
+          <!-- Sky History Overlay -->
+          <wdb-sky-history
+            .entries=${this.skyHistoryEntries}
+            .open=${this.skyHistoryOpen}
+            .tempUnit=${this.tempUnit}
+            @close=${this._onHistoryClose}
+          ></wdb-sky-history>
 
           <!-- Info overlay -->
           <div class="weather-info">

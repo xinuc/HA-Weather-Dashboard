@@ -5,11 +5,14 @@ import { STAT_DEFINITIONS } from './const';
 import { dashboardStyles } from './styles/dashboard';
 import { resolveSensorEntities } from './device-discovery';
 import { deriveCondition, mapHaCondition, getIsNight, getSunElevation, getMoonPhase } from './condition-engine';
+import { computeSkyGradient, SkyGradient, SkyInputs } from './sky-color';
+import { SkyHistoryStore } from './sky-history-store';
 import { formatValue, getBeaufortLabel, bearingToDirection, toKmh } from './utils';
 import { getStatIcon } from './icons';
 
 import './editor';
 import './components/weather-scene';
+import './components/sky-history';
 import './components/wind-compass';
 import './components/wind-gauge';
 import './components/stat-card';
@@ -17,8 +20,10 @@ import './components/stat-card';
 @customElement('weather-dashboard-card')
 export class WeatherDashboardCard extends LitElement {
   @state() private _config!: WeatherDashboardConfig;
+  @state() private _skyHistoryOpen = false;
   private _hass!: HomeAssistant;
   private _entities: Partial<Record<SensorRole, string>> = {};
+  private _skyHistoryStore = new SkyHistoryStore();
   private _resizeObserver?: ResizeObserver;
   private _intersectionObserver?: IntersectionObserver;
 
@@ -271,6 +276,14 @@ export class WeatherDashboardCard extends LitElement {
     }
   }
 
+  private _toggleSkyHistory(): void {
+    this._skyHistoryOpen = !this._skyHistoryOpen;
+  }
+
+  private _closeSkyHistory(): void {
+    this._skyHistoryOpen = false;
+  }
+
   private _getLocationName(): string {
     try {
       return (this._hass as any).config?.location_name ?? '';
@@ -313,6 +326,34 @@ export class WeatherDashboardCard extends LitElement {
 
     // Moon illumination (0-1) from moon phase name
     const moonIllumination = this._getMoonIllumination(moonPhase);
+
+    // Sky history: compute gradient and record state
+    const STARS_CONDITIONS: WeatherCondition[] = ['clear-night', 'starry-night', 'partly-cloudy-night'];
+    const MOON_CONDITIONS: WeatherCondition[] = ['clear-night', 'starry-night'];
+    const showStars = STARS_CONDITIONS.includes(condition);
+    const showMoon = elevation < -6 && !!moonPhase && MOON_CONDITIONS.includes(condition);
+
+    if (useDynamicSky) {
+      const skyInputs: SkyInputs = {
+        sunElevation: elevation,
+        solarRadiation: data.solar_radiation,
+        uvIndex: data.uv_index,
+        humidity: data.humidity,
+        rainRate: data.rain_rate,
+        moonIllumination,
+        isNight,
+      };
+      const skyGradient = computeSkyGradient(skyInputs);
+
+      this._skyHistoryStore.record({
+        condition,
+        skyGradient,
+        temperature: data.temperature,
+        showStars,
+        showMoon,
+        moonPhase,
+      });
+    }
 
     // AQI
     let aqiValue: number | undefined;
@@ -367,6 +408,10 @@ export class WeatherDashboardCard extends LitElement {
               .aqiValue=${aqiValue}
               .moonPhase=${moonPhase}
               .useDynamicSky=${useDynamicSky}
+              .skyHistoryEntries=${this._skyHistoryStore.entries}
+              .skyHistoryOpen=${this._skyHistoryOpen}
+              @icon-click=${this._toggleSkyHistory}
+              @history-close=${this._closeSkyHistory}
             ></wdb-weather-scene>
           </div>
 

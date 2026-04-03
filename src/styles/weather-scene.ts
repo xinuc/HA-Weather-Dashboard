@@ -44,6 +44,16 @@ export const weatherSceneStyles = css`
     width: 45%;
     max-width: 150px;
     filter: drop-shadow(0 4px 12px rgba(0,0,0,0.2));
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .weather-icon-container:hover {
+    transform: translate(-50%, -55%) scale(1.05);
+  }
+
+  .weather-icon-container:active {
+    transform: translate(-50%, -55%) scale(0.97);
   }
 
   .weather-icon-container svg {
