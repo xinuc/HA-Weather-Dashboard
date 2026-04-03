@@ -167,13 +167,20 @@ export function deriveCondition(input: ConditionInput): WeatherCondition {
     }
   }
 
-  // --- Priority 8: Cloud cover (day) - no solar radiation fallback ---
-  if (!isNight && solar_radiation === undefined) {
-    if (humidity !== undefined) {
-      if (humidity >= 90) return 'cloudy';
-      if (humidity >= 80) return 'partly-cloudy-day';
+  // --- Priority 8: Cloud cover (day) - humidity fallback ---
+  // Used when solar radiation is unavailable OR unreliable (low sun angle)
+  if (!isNight) {
+    const solarReliable = solar_radiation !== undefined
+      && sunElevation > 3
+      && clearSkyRadiation(sunElevation) > 20;
+
+    if (!solarReliable) {
+      if (humidity !== undefined) {
+        if (humidity >= 90) return 'cloudy';
+        if (humidity >= 80) return 'partly-cloudy-day';
+      }
+      return 'clear-day';
     }
-    return 'clear-day';
   }
 
   // --- Priority 9: Cloud cover (night) ---

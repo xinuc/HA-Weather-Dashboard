@@ -317,6 +317,25 @@ function applyNightModifiers(
   return gradient;
 }
 
+// ── Humidity/Rain Fallback ──────────────────────────────────────────────────
+// When solar radiation comparison is unreliable (low sun angle, no sensor),
+// estimate cloud state from humidity and rain rate.
+
+function estimateCloudFromHumidity(
+  humidity: number | undefined,
+  rainRate: number,
+): CloudState {
+  if (rainRate >= 10) return 'storm';
+  if (rainRate >= 2.5) return 'deep-overcast';
+  if (rainRate >= 0.1) return 'thick-overcast';
+  if (humidity !== undefined) {
+    if (humidity >= 95) return 'thick-overcast';
+    if (humidity >= 90) return 'moderate-overcast';
+    if (humidity >= 80) return 'thin-haze';
+  }
+  return 'clear';
+}
+
 // ── Night Cloud State Cache ────────────────────────────────────────────────
 // Solar radiation reads zero at night, so we cache the last daytime cloud
 // state for use after dark. Expires after 3 hours.
@@ -365,19 +384,30 @@ export function computeSkyGradient(inputs: SkyInputs): SkyGradient {
   let cloudState: CloudState = 'clear';
   let Kt = -1;
 
-  if (solarRadiation !== undefined && !isNight) {
+  if (!isNight && solarRadiation !== undefined) {
     Kt = computeKt(solarRadiation, sunElevation);
-    const spectralRatio = uvIndex !== undefined
-      ? computeSpectralRatio(uvIndex, Kt, sunElevation)
-      : 1.0; // no UV → can't distinguish ice vs water
-    cloudState = classifyCloud(Kt, spectralRatio, rainRate);
 
-    // Cache daytime cloud state for use after dark
-    if (Kt >= 0) updateDayCache(cloudState, Kt);
+    if (Kt >= 0) {
+      // Reliable solar comparison — use full cloud pipeline
+      const spectralRatio = uvIndex !== undefined
+        ? computeSpectralRatio(uvIndex, Kt, sunElevation)
+        : 1.0;
+      cloudState = classifyCloud(Kt, spectralRatio, rainRate);
+      updateDayCache(cloudState, Kt);
+    } else {
+      // Low sun angle — solar comparison unreliable, use humidity/rain fallback
+      cloudState = estimateCloudFromHumidity(humidity, rainRate);
+      Kt = cloudState === 'clear' ? 0.9 : 0.4; // approximate for modifier weight
+    }
 
     gradient = applyCloudModifier(gradient, cloudState, Kt, false);
-  } else if (isNight) {
-    // Use cached daytime state at night
+  } else if (!isNight) {
+    // Daytime but no solar radiation sensor — use humidity/rain
+    cloudState = estimateCloudFromHumidity(humidity, rainRate);
+    Kt = cloudState === 'clear' ? 0.9 : 0.4;
+    gradient = applyCloudModifier(gradient, cloudState, Kt, false);
+  } else {
+    // Night — use cached daytime state
     const cached = getCachedNightCloud();
     cloudState = cached.cloudState;
     Kt = cached.Kt;
