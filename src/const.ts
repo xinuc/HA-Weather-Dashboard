@@ -85,6 +85,12 @@ export const COMPASS_POINTS = [
   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
 ];
 
+export const COMPASS_POINTS_8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
+
+export const COMPASS_8_DEGREES: Record<string, number> = {
+  N: 0, NE: 45, E: 90, SE: 135, S: 180, SW: 225, W: 270, NW: 315,
+};
+
 export const AQI_LEVELS = [
   { max: 15, label: 'Excellent', color: '#2196F3', stroke: '#fff' },
   { max: 30, label: 'Good', color: '#4CAF50', stroke: '#fff' },

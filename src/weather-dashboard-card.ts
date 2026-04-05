@@ -18,6 +18,8 @@ import './components/wind-compass';
 import './components/wind-gauge';
 import './components/stat-card';
 import './components/stat-history';
+import './components/wind-direction-history';
+import { BearingDataPoint } from './components/wind-direction-history';
 
 @customElement('weather-dashboard-card')
 export class WeatherDashboardCard extends LitElement {
@@ -31,7 +33,11 @@ export class WeatherDashboardCard extends LitElement {
   @state() private _statHistoryName = '';
   @state() private _statHistoryUnit = '';
   @state() private _statHistoryIcon = '';
+  @state() private _windDirHistoryOpen = false;
+  @state() private _windDirHistoryLoading = false;
+  @state() private _windDirHistoryData: BearingDataPoint[] = [];
   private _statHistoryRequestId = 0;
+  private _windDirHistoryRequestId = 0;
   private _skyHistoryRequestId = 0;
   private _hass!: HomeAssistant;
   private _entities: Partial<Record<SensorRole, string>> = {};
@@ -339,6 +345,55 @@ export class WeatherDashboardCard extends LitElement {
     this._openStatHistory(this._config.aqi_entity, 'PM2.5', unit, '');
   }
 
+  private async _onWindCompassClick(): Promise<void> {
+    const entityId = this._entities.wind_bearing;
+    if (!entityId || !this._hass) return;
+
+    const requestId = ++this._windDirHistoryRequestId;
+    this._windDirHistoryData = [];
+    this._windDirHistoryLoading = true;
+    this._windDirHistoryOpen = true;
+
+    try {
+      const now = new Date();
+      const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const result = await (this._hass as any).callWS({
+        type: 'history/history_during_period',
+        start_time: start.toISOString(),
+        end_time: now.toISOString(),
+        entity_ids: [entityId],
+        minimal_response: true,
+        significant_changes_only: false,
+        no_attributes: true,
+      });
+
+      if (requestId !== this._windDirHistoryRequestId) return;
+
+      const entries = result?.[entityId];
+      if (Array.isArray(entries)) {
+        const points: BearingDataPoint[] = [];
+        for (const entry of entries) {
+          const parsed = parseNumericHistoryEntry(entry);
+          if (parsed) points.push({ time: parsed.time, value: parsed.value });
+        }
+        this._windDirHistoryData = points;
+      }
+    } catch (err) {
+      if (requestId !== this._windDirHistoryRequestId) return;
+      console.warn('Failed to fetch wind direction history:', err);
+      this._windDirHistoryData = [];
+    } finally {
+      if (requestId === this._windDirHistoryRequestId) {
+        this._windDirHistoryLoading = false;
+      }
+    }
+  }
+
+  private _closeWindDirHistory(): void {
+    this._windDirHistoryOpen = false;
+  }
+
   private _onWindGaugeClick(): void {
     const entityId = this._entities.wind_speed;
     if (!entityId) return;
@@ -576,7 +631,7 @@ export class WeatherDashboardCard extends LitElement {
             <div class="wind-panel">
               <div class="wind-instruments">
                 <!-- Compass -->
-                <div class="wind-instrument">
+                <div class="wind-instrument clickable" @click=${this._onWindCompassClick}>
                   <div class="wind-sublabel">Wind Direction</div>
                   <div class="wind-svg-container">
                     <wdb-wind-compass .bearing=${windBearing}></wdb-wind-compass>
@@ -622,6 +677,14 @@ export class WeatherDashboardCard extends LitElement {
           .data=${this._statHistoryData}
           @close=${this._closeStatHistory}
         ></wdb-stat-history>
+
+        <!-- Wind Direction History Overlay -->
+        <wdb-wind-direction-history
+          .open=${this._windDirHistoryOpen}
+          .loading=${this._windDirHistoryLoading}
+          .data=${this._windDirHistoryData}
+          @close=${this._closeWindDirHistory}
+        ></wdb-wind-direction-history>
 
       </ha-card>
     `;
