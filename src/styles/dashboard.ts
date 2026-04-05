@@ -132,6 +132,14 @@ export const dashboardStyles = css`
     align-items: center;
   }
 
+  .wind-instrument.clickable {
+    cursor: pointer;
+  }
+
+  .wind-instrument.clickable:active {
+    transform: scale(0.97);
+  }
+
   .wind-sublabel {
     font-size: 0.65rem;
     font-weight: 600;

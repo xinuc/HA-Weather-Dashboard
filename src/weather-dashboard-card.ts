@@ -336,14 +336,21 @@ export class WeatherDashboardCard extends LitElement {
     const aqiState = this._hass?.states[this._config.aqi_entity];
     const unit = aqiState?.attributes?.unit_of_measurement || 'µg/m³';
 
-    // Reuse the stat history flow with AQI entity details
+    this._openStatHistory(this._config.aqi_entity, 'PM2.5', unit, '');
+  }
+
+  private _onWindGaugeClick(): void {
+    const entityId = this._entities.wind_speed;
+    if (!entityId) return;
+    const unit = this._getUnit('wind_speed') || 'km/h';
+    const icon = getStatIcon('wind-beaufort-0', 'wind_speed', this._getValue('wind_speed'), this._isHaMetric() ? 'metric' : 'imperial');
+
+    this._openStatHistory(entityId, 'Wind Speed', unit, icon);
+  }
+
+  private _openStatHistory(entityId: string, name: string, unit: string, icon: string): void {
     this._onStatClick(new CustomEvent('stat-click', {
-      detail: {
-        entityId: this._config.aqi_entity,
-        name: 'PM2.5',
-        unit,
-        icon: '',
-      },
+      detail: { entityId, name, unit, icon },
     }));
   }
 
@@ -579,7 +586,7 @@ export class WeatherDashboardCard extends LitElement {
                   </div>
                 </div>
                 <!-- Gauge -->
-                <div class="wind-instrument">
+                <div class="wind-instrument clickable" @click=${this._onWindGaugeClick}>
                   <div class="wind-sublabel">Wind Speed</div>
                   <div class="gauge-svg-container">
                     <wdb-wind-gauge
