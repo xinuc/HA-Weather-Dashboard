@@ -337,6 +337,13 @@ export class WeatherDashboardCard extends LitElement {
     this._skyHistoryEntries = [];
   }
 
+  private _onInfoClick(): void {
+    const entityId = this._entities.temperature;
+    if (!entityId) return;
+    const unit = this._getUnit('temperature') || '°C';
+    this._openStatHistory(entityId, 'Temperature', unit, '');
+  }
+
   private _onAqiClick(): void {
     if (!this._config.aqi_entity) return;
     const aqiState = this._hass?.states[this._config.aqi_entity];
@@ -616,6 +623,7 @@ export class WeatherDashboardCard extends LitElement {
               .useDynamicSky=${useDynamicSky}
               @icon-click=${this._toggleSkyHistory}
               @aqi-click=${this._onAqiClick}
+              @info-click=${this._onInfoClick}
             ></wdb-weather-scene>
             <wdb-sky-history
               .entries=${this._skyHistoryEntries}

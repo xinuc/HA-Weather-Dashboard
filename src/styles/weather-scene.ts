@@ -73,6 +73,25 @@ export const weatherSceneStyles = css`
     width: 60%;
   }
 
+  .info-clickable {
+    display: inline-block;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin: -4px -8px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+  }
+  .info-clickable:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .info-clickable:active {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .info-clickable:focus-visible {
+    outline: 2px solid rgba(100, 180, 255, 0.6);
+    outline-offset: 2px;
+  }
+
   .condition-text {
     font-size: 0.9rem;
     font-weight: 600;

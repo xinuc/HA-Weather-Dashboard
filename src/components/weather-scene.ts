@@ -126,6 +126,17 @@ export class WeatherScene extends LitElement {
     }
   }
 
+  private _onInfoClick(): void {
+    this.dispatchEvent(new CustomEvent('info-click', { bubbles: true, composed: true }));
+  }
+
+  private _onInfoKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this._onInfoClick();
+    }
+  }
+
   render() {
     const skyClass = this._getSkyClass();
     const skyStyle = this._getSkyStyle();
@@ -160,18 +171,25 @@ export class WeatherScene extends LitElement {
 
           <!-- Info overlay -->
           <div class="weather-info">
-            <div class="condition-text">${label}</div>
-            ${this.temperature !== undefined ? html`
-              <div class="temp-display">${Math.round(this.temperature)}${this.tempUnit}</div>
-            ` : ''}
-            <div class="scene-details">
-              ${this.rainRate !== undefined && this.rainRate >= 0.1 ? html`
-                <span>Rain ${this.rainRate < 10 ? this.rainRate.toFixed(1) : Math.round(this.rainRate)} ${this.rainRateUnit}</span>
-              ` : this.windSpeed !== undefined && this.windSpeed > 5 ? html`
-                <span>Wind ${Math.round(this.windSpeed)} ${this.windSpeedUnit}</span>
-              ` : this.uvIndex !== undefined ? html`
-                <span>UV ${Math.round(this.uvIndex)}</span>
+            <div class="info-clickable"
+                 role="button"
+                 tabindex="0"
+                 aria-label="Show temperature history"
+                 @click=${this._onInfoClick}
+                 @keydown=${this._onInfoKeyDown}>
+              <div class="condition-text">${label}</div>
+              ${this.temperature !== undefined ? html`
+                <div class="temp-display">${Math.round(this.temperature)}${this.tempUnit}</div>
               ` : ''}
+              <div class="scene-details">
+                ${this.rainRate !== undefined && this.rainRate >= 0.1 ? html`
+                  <span>Rain ${this.rainRate < 10 ? this.rainRate.toFixed(1) : Math.round(this.rainRate)} ${this.rainRateUnit}</span>
+                ` : this.windSpeed !== undefined && this.windSpeed > 5 ? html`
+                  <span>Wind ${Math.round(this.windSpeed)} ${this.windSpeedUnit}</span>
+                ` : this.uvIndex !== undefined ? html`
+                  <span>UV ${Math.round(this.uvIndex)}</span>
+                ` : ''}
+              </div>
             </div>
           </div>
         </div>
