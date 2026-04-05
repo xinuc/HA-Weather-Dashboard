@@ -87,6 +87,14 @@ export class AqiBadge extends LitElement {
       letter-spacing: 0.5px;
       line-height: 1;
     }
+
+    .aqi-badge {
+      cursor: pointer;
+    }
+
+    .aqi-badge:active {
+      transform: scale(0.93);
+    }
   `;
 
   private _getLevel(): number {
@@ -125,12 +133,25 @@ export class AqiBadge extends LitElement {
     `;
   }
 
+  private _onClick(): void {
+    this.dispatchEvent(
+      new CustomEvent('aqi-click', {
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
   render() {
     const idx = this._getLevel();
     const level = AQI_LEVELS[idx];
 
     return html`
-      <div class="aqi-badge">
+      <div class="aqi-badge"
+           role="button"
+           tabindex="0"
+           @click=${this._onClick}
+           @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') this._onClick(); }}>
         <div class="aqi-face">
           ${this._renderFace(idx, level.color)}
         </div>

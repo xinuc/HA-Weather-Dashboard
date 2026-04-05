@@ -331,6 +331,22 @@ export class WeatherDashboardCard extends LitElement {
     this._skyHistoryEntries = [];
   }
 
+  private _onAqiClick(): void {
+    if (!this._config.aqi_entity) return;
+    const aqiState = this._hass?.states[this._config.aqi_entity];
+    const unit = aqiState?.attributes?.unit_of_measurement || 'µg/m³';
+
+    // Reuse the stat history flow with AQI entity details
+    this._onStatClick(new CustomEvent('stat-click', {
+      detail: {
+        entityId: this._config.aqi_entity,
+        name: 'PM2.5',
+        unit,
+        icon: '',
+      },
+    }));
+  }
+
   private async _onStatClick(e: CustomEvent): Promise<void> {
     const { entityId, name, unit, icon } = e.detail;
     if (!entityId || !this._hass) return;
@@ -537,6 +553,7 @@ export class WeatherDashboardCard extends LitElement {
               .moonPhase=${moonPhase}
               .useDynamicSky=${useDynamicSky}
               @icon-click=${this._toggleSkyHistory}
+              @aqi-click=${this._onAqiClick}
             ></wdb-weather-scene>
             <wdb-sky-history
               .entries=${this._skyHistoryEntries}
