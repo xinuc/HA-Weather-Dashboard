@@ -29,7 +29,8 @@ export type SensorRole =
   | 'uv_index'
   | 'solar_radiation'
   | 'visibility'
-  | 'soil_temp';
+  | 'soil_temp'
+  | 'aqi';
 
 export interface SensorData {
   temperature?: number;

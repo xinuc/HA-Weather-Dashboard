@@ -85,7 +85,8 @@ export class WeatherDashboardCard extends LitElement {
     if (this._config?.weather_entity) {
       entities.push(this._config.weather_entity);
     }
-    if (this._config?.aqi_entity) {
+    // aqi_entity from config (user override or standalone config without device_id)
+    if (this._config?.aqi_entity && this._config.aqi_entity !== this._entities.aqi) {
       entities.push(this._config.aqi_entity);
     }
     return entities;
@@ -297,7 +298,7 @@ export class WeatherDashboardCard extends LitElement {
         rainRateEntity: this._entities.rain_rate,
         windSpeedEntity: this._entities.wind_speed,
         dewPointEntity: this._entities.dew_point,
-        aqiEntity: this._config.aqi_entity,
+        aqiEntity: this._config.aqi_entity || this._entities.aqi,
       };
 
       // Get lat/lng from config or HA
@@ -345,11 +346,12 @@ export class WeatherDashboardCard extends LitElement {
   }
 
   private _onAqiClick(): void {
-    if (!this._config.aqi_entity) return;
-    const aqiState = this._hass?.states[this._config.aqi_entity];
+    const entityId = this._config.aqi_entity || this._entities.aqi;
+    if (!entityId) return;
+    const aqiState = this._hass?.states[entityId];
     const unit = aqiState?.attributes?.unit_of_measurement || 'µg/m³';
 
-    this._openStatHistory(this._config.aqi_entity, 'PM2.5', unit, '');
+    this._openStatHistory(entityId, 'PM2.5', unit, '');
   }
 
   private async _onWindCompassClick(): Promise<void> {
@@ -555,9 +557,10 @@ export class WeatherDashboardCard extends LitElement {
     const location = this._getLocationName();
 
     // AQI value (read early — needed for both condition engine and scene badge)
+    const aqiEntityId = this._config.aqi_entity || this._entities.aqi;
     let aqiValue: number | undefined;
-    if (this._config.aqi_entity) {
-      const aqiState = this._hass.states[this._config.aqi_entity];
+    if (aqiEntityId) {
+      const aqiState = this._hass.states[aqiEntityId];
       if (aqiState && isValidState(aqiState.state)) {
         const val = parseFloat(aqiState.state);
         if (isFinite(val)) aqiValue = val;

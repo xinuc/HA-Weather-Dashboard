@@ -29,6 +29,7 @@ const ROLE_MATCHERS: Array<{
   { role: 'uv_index', match: (e) => /uv/i.test(e.entity_id) && !/indoor/i.test(e.entity_id) },
   { role: 'solar_radiation', match: (e) => e.device_class === 'irradiance' || /solarradiation/i.test(e.entity_id) },
   { role: 'visibility', match: (e) => /visibility/i.test(e.entity_id) },
+  { role: 'aqi', match: (e) => e.device_class === 'pm25' || /pm2[._]?5/i.test(e.entity_id) || /aqi.*pm/i.test(e.entity_id) },
 ];
 
 function discoverSensors(
