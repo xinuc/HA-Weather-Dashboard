@@ -68,7 +68,10 @@ export const weatherSceneStyles = css`
     right: 0;
     text-align: right;
     padding: 12px 16px;
-    background: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.3) 100%);
+    /* Scene overlay text is theme-independent — always light, on its own scrim,
+       so it stays readable over the real sky in both light and dark HA themes. */
+    color: var(--wdb-scene-text, #fff);
+    background: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.42) 100%);
     border-radius: 0 0 8px 0;
     width: 60%;
   }
@@ -100,9 +103,14 @@ export const weatherSceneStyles = css`
 
   .temp-display {
     font-size: 2.2rem;
-    font-weight: 700;
-    text-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    font-weight: 800;
     line-height: 1.1;
+    /* Warm sun-to-sunset gradient — the card's signature pop */
+    background: linear-gradient(115deg, #ffd36b 0%, #ff8a6b 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.55));
   }
 
   .scene-details {

@@ -38,6 +38,19 @@ export class StatCard extends LitElement {
     }
   }
 
+  // Weather-native accent per stat category — drives the tile's colour-coding.
+  private static _ACCENTS: Record<string, string> = {
+    temperature: '--wdb-coral', feels_like: '--wdb-coral', heat_index: '--wdb-coral', soil_temp: '--wdb-coral',
+    humidity: '--wdb-sky', dew_point: '--wdb-sky', wind_chill: '--wdb-sky', rain_rate: '--wdb-sky', daily_rain: '--wdb-sky', visibility: '--wdb-sky',
+    uv_index: '--wdb-sun', solar_radiation: '--wdb-sun',
+    wind_speed: '--wdb-mint', wind_gust: '--wdb-mint',
+    pressure: '--wdb-iris',
+  };
+
+  private _accentVar(): string {
+    return StatCard._ACCENTS[this.statKey] ?? '--wdb-sky';
+  }
+
   render() {
     const clickable = !!this.entityId;
     return html`
@@ -46,6 +59,7 @@ export class StatCard extends LitElement {
         role=${clickable ? 'button' : 'presentation'}
         tabindex=${clickable ? '0' : '-1'}
         aria-label=${clickable ? `Show ${this.name} history` : ''}
+        style=${`--stat-accent: var(${this._accentVar()})`}
         @click=${this._onClick}
         @keydown=${this._onKeyDown}
       >

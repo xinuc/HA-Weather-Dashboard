@@ -9,6 +9,9 @@ export const gaugeStyles = css`
     width: 100%;
     height: auto;
     display: block;
+    /* Ticks, numbers, unit label and needle use currentColor so the gauge
+       ink flips with the HA theme; the colour bands stay fixed. */
+    color: var(--wdb-instrument-ink, #eef3ff);
   }
 
   .gauge-needle {

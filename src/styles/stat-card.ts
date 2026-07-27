@@ -6,8 +6,18 @@ export const statCardStyles = css`
   }
 
   .stat-card {
-    background: var(--wdb-stat-bg, rgba(100, 149, 237, 0.18));
-    border: 1px solid var(--wdb-stat-border, rgba(255, 255, 255, 0.08));
+    /* Plain fallback first, then a faint category-accent wash on top
+       (kept subtle so it complements the colourful meteocon icons). */
+    background: var(--wdb-stat-bg, rgba(255, 255, 255, 0.05));
+    background:
+      linear-gradient(
+        0deg,
+        color-mix(in srgb, var(--stat-accent, transparent) 9%, transparent),
+        color-mix(in srgb, var(--stat-accent, transparent) 9%, transparent)
+      ),
+      var(--wdb-stat-bg, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--wdb-stat-border, rgba(255, 255, 255, 0.09));
+    border-color: color-mix(in srgb, var(--stat-accent, transparent) 20%, var(--wdb-stat-border, rgba(255, 255, 255, 0.09)));
     border-radius: 10px;
     padding: 10px;
     display: flex;
@@ -17,16 +27,18 @@ export const statCardStyles = css`
 
   .stat-icon {
     flex-shrink: 0;
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--stat-accent, transparent) 14%, transparent);
   }
 
   .stat-icon svg {
-    width: 32px;
-    height: 32px;
+    width: 26px;
+    height: 26px;
   }
 
   .stat-card.clickable {
@@ -37,7 +49,14 @@ export const statCardStyles = css`
   }
 
   .stat-card.clickable:hover {
-    background: var(--wdb-stat-bg-hover, rgba(100, 149, 237, 0.28));
+    background: var(--wdb-stat-bg-hover, rgba(255, 255, 255, 0.09));
+    background:
+      linear-gradient(
+        0deg,
+        color-mix(in srgb, var(--stat-accent, transparent) 16%, transparent),
+        color-mix(in srgb, var(--stat-accent, transparent) 16%, transparent)
+      ),
+      var(--wdb-stat-bg-hover, rgba(255, 255, 255, 0.09));
   }
 
   .stat-card.clickable:active {

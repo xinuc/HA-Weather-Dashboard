@@ -50,6 +50,9 @@ export class WeatherDashboardCard extends LitElement {
     const oldHass = this._hass;
     this._hass = hass;
 
+    // Follow the active HA theme (light/dark) so the card's canvas + ink adapt
+    this._applyTheme();
+
     // Resolve entities on first hass or when entity count changes
     if (!oldHass || (this._config?.device_id && this._shouldRediscover(oldHass))) {
       this._entities = resolveSensorEntities(hass, this._config);
@@ -148,6 +151,58 @@ export class WeatherDashboardCard extends LitElement {
     super.disconnectedCallback();
     this._resizeObserver?.disconnect();
     this._intersectionObserver?.disconnect();
+  }
+
+  /**
+   * Reflect the active Home Assistant theme onto the host as data-theme.
+   * The stylesheet swaps its canvas, ink and surface tokens accordingly, so
+   * the card stays legible whether HA is set to a light or dark theme.
+   * Falls back to the card's native dark look when the theme can't be read.
+   */
+  private _applyTheme(): void {
+    const dark = this._isHaDark();
+    // Absent attribute → default (dark) tokens; present → light overrides.
+    if (dark) {
+      if (this.getAttribute('data-theme') !== null) this.removeAttribute('data-theme');
+    } else if (this.getAttribute('data-theme') !== 'light') {
+      this.setAttribute('data-theme', 'light');
+    }
+  }
+
+  private _isHaDark(): boolean {
+    // Preferred: HA's own signal (present on modern HA).
+    const darkMode = (this._hass as { themes?: { darkMode?: boolean } })?.themes?.darkMode;
+    if (typeof darkMode === 'boolean') return darkMode;
+
+    // Fallback: luminance of the theme background colour.
+    try {
+      const cs = getComputedStyle(this);
+      const bg = cs.getPropertyValue('--primary-background-color').trim()
+        || cs.getPropertyValue('--card-background-color').trim();
+      const lum = this._luminance(bg);
+      if (lum !== undefined) return lum < 0.5;
+    } catch { /* ignore */ }
+
+    return true; // native dark hero look
+  }
+
+  /** Relative luminance (0-1) of a #hex or rgb()/rgba() colour, else undefined. */
+  private _luminance(color: string): number | undefined {
+    if (!color) return undefined;
+    let r: number, g: number, b: number;
+    const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hex) {
+      let h = hex[1];
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      r = parseInt(h.slice(0, 2), 16);
+      g = parseInt(h.slice(2, 4), 16);
+      b = parseInt(h.slice(4, 6), 16);
+    } else {
+      const rgb = color.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+      if (!rgb) return undefined;
+      r = +rgb[1]; g = +rgb[2]; b = +rgb[3];
+    }
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
   }
 
   // Get entity state object for a sensor role

@@ -69,7 +69,8 @@ export class WindGauge extends LitElement {
       ticks.push(svg`
         <line
           x1=${x1} y1=${y1} x2=${x2} y2=${y2}
-          stroke="rgba(255,255,255,${isMajor ? 0.8 : isMedium ? 0.5 : 0.3})"
+          stroke="currentColor"
+          stroke-opacity=${isMajor ? 0.8 : isMedium ? 0.5 : 0.3}
           stroke-width=${isMajor ? 1.5 : isMedium ? 1 : 0.7}
         />
       `);
@@ -82,7 +83,8 @@ export class WindGauge extends LitElement {
             x=${tx} y=${ty}
             text-anchor="middle"
             dominant-baseline="central"
-            fill="rgba(255,255,255,0.7)"
+            fill="currentColor"
+            fill-opacity="0.7"
             font-size="10"
             font-weight="600"
           >${val}</text>
@@ -122,7 +124,7 @@ export class WindGauge extends LitElement {
 
     return svg`
       <g class="gauge-needle" style="transform-origin:${CX}px ${CY}px;transform:rotate(${angle}deg)">
-        <line x1=${CX} y1=${CY} x2=${CX + R - 4} y2=${CY} stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1=${CX} y1=${CY} x2=${CX + R - 4} y2=${CY} stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
       </g>
       <circle cx=${CX} cy=${CY} r="8" fill="#546E7A"/>
       <circle cx=${CX} cy=${CY} r="4.5" fill="#90A4AE"/>
@@ -142,7 +144,7 @@ export class WindGauge extends LitElement {
         ${this._renderIcons()}
 
         <!-- Unit label -->
-        <text x=${CX} y=${CY + 18} text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10">km/h</text>
+        <text x=${CX} y=${CY + 18} text-anchor="middle" fill="currentColor" fill-opacity="0.5" font-size="10">km/h</text>
 
         <!-- Needle -->
         ${this._renderNeedle()}

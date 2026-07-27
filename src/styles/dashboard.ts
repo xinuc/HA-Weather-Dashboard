@@ -4,24 +4,65 @@ export const dashboardStyles = css`
   :host {
     display: block;
     --wdb-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
-    --wdb-panel-bg: rgba(255,255,255,0.08);
-    --wdb-panel-border: rgba(255,255,255,0.1);
-    --wdb-text: #fff;
-    --wdb-text-muted: rgba(255,255,255,0.75);
-    --wdb-stat-bg: rgba(100,149,237,0.18);
-    --wdb-stat-border: rgba(255,255,255,0.08);
+
+    /* Weather-native accents — shared by both themes */
+    --wdb-sky: #2e96ff;
+    --wdb-sun: #ffb627;
+    --wdb-coral: #ff6b5a;
+    --wdb-mint: #17d2a3;
+    --wdb-iris: #897cf2;
+
+    /* Canvas + surfaces — dark HA theme (default) */
+    --wdb-canvas: linear-gradient(180deg, #151c30 0%, #1b2544 55%, #182038 100%);
+    --wdb-text: #eef3ff;
+    --wdb-text-muted: rgba(238, 243, 255, 0.62);
+    --wdb-panel-bg: rgba(255, 255, 255, 0.055);
+    --wdb-panel-border: rgba(255, 255, 255, 0.1);
+    --wdb-stat-bg: rgba(255, 255, 255, 0.05);
+    --wdb-stat-bg-hover: rgba(255, 255, 255, 0.09);
+    --wdb-stat-border: rgba(255, 255, 255, 0.09);
+    --wdb-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+    /* Instruments (compass/gauge) — ink flips, needle uses accent */
+    --wdb-instrument-ink: #dbe4f7;
+    --wdb-compass-face-1: #2a3a5c;
+    --wdb-compass-face-2: #1a2a4a;
+
+    /* Weather-scene overlay text stays light in both themes (own scrim) */
+    --wdb-scene-text: #ffffff;
+  }
+
+  /* Light HA theme — airy sky-wash canvas, dark ink, accents nudged for contrast */
+  :host([data-theme='light']) {
+    --wdb-sky: #1e7fe6;
+    --wdb-sun: #e8930a;
+    --wdb-coral: #f0503c;
+    --wdb-mint: #06a986;
+    --wdb-iris: #6c5ce0;
+
+    --wdb-canvas: linear-gradient(180deg, #e9f2ff 0%, #f5faff 60%, #eef5ff 100%);
+    --wdb-text: #182338;
+    --wdb-text-muted: #5e6c86;
+    --wdb-panel-bg: rgba(24, 52, 104, 0.045);
+    --wdb-panel-border: rgba(24, 52, 104, 0.1);
+    --wdb-stat-bg: rgba(24, 52, 104, 0.036);
+    --wdb-stat-bg-hover: rgba(24, 52, 104, 0.07);
+    --wdb-stat-border: rgba(24, 52, 104, 0.09);
+    --wdb-shadow: 0 8px 28px rgba(30, 58, 110, 0.12);
+
+    --wdb-instrument-ink: #33425c;
+    --wdb-compass-face-1: #e4edfb;
+    --wdb-compass-face-2: #cfddf1;
   }
 
   ha-card {
-    background: var(--ha-card-background,
-      linear-gradient(180deg, #1a3a5c 0%, #1e4d6e 50%, #1a3a5c 100%)
-    );
-    color: var(--primary-text-color, var(--wdb-text));
+    background: var(--wdb-canvas);
+    color: var(--wdb-text);
     font-family: var(--wdb-font);
     border-radius: var(--ha-card-border-radius, 16px);
     overflow: hidden;
     padding-bottom: 2px;
-    box-shadow: var(--ha-card-box-shadow, 0 8px 32px rgba(0,0,0,0.4));
+    box-shadow: var(--wdb-shadow);
   }
 
   .header {
